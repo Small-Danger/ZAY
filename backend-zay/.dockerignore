@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.git
+*.md
+.env
+.env.*
+!.env.example
+npm-debug.log*
+test
+**/*.spec.ts
+Dockerfile.dev
+uploads
+!uploads/.gitkeep

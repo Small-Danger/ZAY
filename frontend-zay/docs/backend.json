@@ -1,0 +1,99 @@
+
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A luxury fashion item in the ZAY Atelier collection",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "subcategoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "subcategoryName": { "type": "string" },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "stock": { "type": "number" },
+        "status": { "type": "string" },
+        "image": { "type": "string" },
+        "description": { "type": "string" },
+        "badge": { "type": "string" },
+        "isNew": { "type": "boolean" },
+        "isPromo": { "type": "boolean" }
+      },
+      "required": ["name", "categoryId", "price", "image"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A product category (e.g., ROBES, JUPES)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["name"]
+    },
+    "Subcategory": {
+      "title": "Subcategory",
+      "description": "A subcategory belonging to a main category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["name", "categoryId"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Information about a ZAY Atelier customer",
+      "type": "object",
+      "properties": {
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" }
+      }
+    },
+    "Address": {
+      "title": "Address",
+      "description": "A customer's shipping address",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "street": { "type": "string" },
+        "city": { "type": "string" },
+        "zip": { "type": "string" },
+        "country": { "type": "string" },
+        "isDefault": { "type": "boolean" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["password", "google"]
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Global product catalog"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Main product categories"
+    },
+    "/categories/{categoryId}/subcategories/{subcategoryId}": {
+      "schema": "Subcategory",
+      "description": "Subcategories for a specific category"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Individual customer profiles"
+    },
+    "/users/{userId}/addresses/{addressId}": {
+      "schema": "Address",
+      "description": "Personal shipping addresses for each user"
+    }
+  }
+}

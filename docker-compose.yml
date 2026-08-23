@@ -1,0 +1,94 @@
+services:
+  postgres-zay:
+    image: postgres:16-alpine
+    container_name: postgres-zay
+    environment:
+      POSTGRES_USER: zay
+      POSTGRES_PASSWORD: zay_secret
+      POSTGRES_DB: zay_db
+    ports:
+      # Port hôte peu courant pour éviter les PostgreSQL Windows locaux (5432/5433)
+      - "55432:5432"
+    volumes:
+      - postgres_zay_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zay -d zay_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend-zay:
+    build:
+      context: ./backend-zay
+      dockerfile: Dockerfile.dev
+    container_name: backend-zay
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./backend-zay/.env
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://zay:zay_secret@postgres-zay:5432/zay_db?schema=public
+      CORS_ORIGINS: http://localhost:9002,http://127.0.0.1:9002
+      JWT_SECRET: change-me-zay-dev-secret-min-32-chars!!
+      JWT_EXPIRES_IN: 7d
+      ADMIN_EMAIL: admin@zay.local
+      ADMIN_PASSWORD: Admin123!
+      FRONTEND_URL: http://localhost:9002
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+    volumes:
+      - ./backend-zay/src:/app/src
+      - ./backend-zay/prisma:/app/prisma
+      - ./backend-zay/uploads:/app/uploads
+    depends_on:
+      postgres-zay:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  frontend-zay:
+    build:
+      context: ./frontend-zay
+      dockerfile: Dockerfile.dev
+    container_name: frontend-zay
+    ports:
+      - "9002:9002"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api
+      NEXT_PUBLIC_API_ORIGIN: http://localhost:4000
+      NEXT_PUBLIC_SITE_URL: http://localhost:9002
+      # SSR dans le conteneur → hostname Docker, pas localhost
+      API_INTERNAL_URL: http://backend-zay:4000/api
+      # Windows/OneDrive → Docker : Turbopack rate le watch ; Webpack + polling OK
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+      NEXT_TELEMETRY_DISABLED: "1"
+    # Force webpack même si l’image est ancienne (package.json pas monté)
+    command: ["npm", "run", "dev:docker"]
+    volumes:
+      - ./frontend-zay/src:/app/src
+      - ./frontend-zay/public:/app/public
+      - ./frontend-zay/next.config.ts:/app/next.config.ts
+      - ./frontend-zay/package.json:/app/package.json
+    depends_on:
+      postgres-zay:
+        condition: service_healthy
+      backend-zay:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_zay_data:

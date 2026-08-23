@@ -1,0 +1,329 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// Vague B — Auth
+// =============================================================================
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  phone        String?
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  orders    Order[]
+  wishlist  WishlistItem[]
+  cartItems CartItem[]
+  addresses Address[]
+
+  @@map("users")
+}
+
+model Address {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  street    String
+  city      String
+  zip       String
+  country   String   @default("France")
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// =============================================================================
+// Vague A — Catalogue
+// A.1 categories / subcategories
+// A.2 products / product_variants
+// =============================================================================
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  /// Image cercle home / tuile catalogue (URL ou path public)
+  image     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  subcategories Subcategory[]
+  products      Product[]
+
+  @@map("categories")
+}
+
+model Subcategory {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  /// Image optionnelle (filtres / menus)
+  image      String?
+  categoryId String   @map("category_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  category Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
+  @@map("subcategories")
+}
+
+model Product {
+  id             String   @id @default(uuid()) @db.Uuid
+  slug           String   @unique
+  name           String
+  description    String?  @db.Text
+  price          Decimal  @db.Decimal(10, 2)
+  originalPrice  Decimal? @map("original_price") @db.Decimal(10, 2)
+  /// Stock agrégé (utilisé si aucune variante, sinon recalculé depuis variants)
+  stock          Int      @default(0)
+  /// Actif | Stock faible | Rupture — aligné sur l’admin front actuel
+  status         String   @default("Actif")
+  /// Image de couverture (carte catalogue / vignette)
+  image          String
+  /// Galerie additionnelle (hors couverture)
+  images         String[] @default([])
+  badge          String?
+  isNew          Boolean  @default(true) @map("is_new")
+  isPromo        Boolean  @default(false) @map("is_promo")
+  categoryId     String   @map("category_id") @db.Uuid
+  subcategoryId  String?  @map("subcategory_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  category    Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  subcategory Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  variants    ProductVariant[]
+  wishlist    WishlistItem[]
+  cartItems   CartItem[]
+
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([isNew])
+  @@index([isPromo])
+  @@map("products")
+}
+
+model ProductVariant {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  size      String
+  colorName String   @map("color_name")
+  colorHex  String?  @map("color_hex")
+  sku       String?  @unique
+  stock     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems CartItem[]
+
+  @@unique([productId, size, colorName])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+// =============================================================================
+// Vague C — Commandes / Checkout
+// =============================================================================
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PREPARING
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  KLARNA
+}
+
+model Order {
+  id            String         @id @default(uuid()) @db.Uuid
+  number        String         @unique
+  userId        String         @map("user_id") @db.Uuid
+  status        OrderStatus    @default(PAID)
+  paymentMethod PaymentMethod? @map("payment_method")
+
+  firstName   String  @map("first_name")
+  lastName    String  @map("last_name")
+  phone       String?
+  addressLine String  @map("address_line")
+  city        String
+  postalCode  String  @map("postal_code")
+  country     String  @default("France")
+
+  subtotal       Decimal @db.Decimal(10, 2)
+  shippingCost   Decimal @default(0) @map("shipping_cost") @db.Decimal(10, 2)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  total          Decimal @db.Decimal(10, 2)
+  promoCode      String? @map("promo_code")
+
+  carrier      String?
+  trackingCode String? @map("tracking_code")
+  trackingUrl  String? @map("tracking_url")
+
+  itemsCount   Int     @map("items_count")
+  thumbnailUrl String? @map("thumbnail_url")
+  customerName String  @map("customer_name")
+  stripeSessionId String? @unique @map("stripe_session_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String  @id @default(uuid()) @db.Uuid
+  orderId    String  @map("order_id") @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  variantId  String? @map("variant_id") @db.Uuid
+  name       String
+  image      String
+  size       String
+  color      String
+  unitPrice  Decimal @map("unit_price") @db.Decimal(10, 2)
+  quantity   Int
+  lineTotal  Decimal @map("line_total") @db.Decimal(10, 2)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// =============================================================================
+// Vague D — Promos / Contact / Wishlist
+// =============================================================================
+
+enum PromoType {
+  PERCENTAGE
+  AMOUNT
+}
+
+model PromoCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  code       String    @unique
+  type       PromoType
+  value      Decimal   @db.Decimal(10, 2)
+  expiresAt  DateTime? @map("expires_at")
+  usageLimit Int?      @map("usage_limit")
+  usageCount Int       @default(0) @map("usage_count")
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@map("promo_codes")
+}
+
+enum ContactSubject {
+  ORDER_TRACKING
+  STYLING_ADVICE
+  RETURNS_EXCHANGES
+  MEDIA_PARTNERSHIP
+  OTHER
+}
+
+enum ContactStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+model ContactMessage {
+  id        String         @id @default(uuid()) @db.Uuid
+  firstName String         @map("first_name")
+  lastName  String         @map("last_name")
+  email     String
+  subject   ContactSubject
+  message   String         @db.Text
+  status    ContactStatus  @default(NEW)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("contact_messages")
+}
+
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  variantId String?  @map("variant_id") @db.Uuid
+  size      String
+  color     String
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, productId, size, color])
+  @@index([userId])
+  @@index([productId])
+  @@map("cart_items")
+}
+
+model WishlistItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("wishlist_items")
+}
+
+/// Paramètres boutique (singleton id = 1)
+model StoreSettings {
+  id                    Int       @id @default(1)
+  storeName             String    @default("ZAY") @map("store_name")
+  contactEmail          String?   @map("contact_email")
+  shippingCost          Decimal   @default(0) @map("shipping_cost") @db.Decimal(10, 2)
+  freeShippingThreshold Decimal?  @map("free_shipping_threshold") @db.Decimal(10, 2)
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("store_settings")
+}
+

@@ -1,0 +1,15 @@
+services:
+  frontend-zay:
+    build: .
+    container_name: frontend-zay
+    ports:
+      - "9002:9002"
+    environment:
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./next.config.ts:/app/next.config.ts
+    restart: unless-stopped

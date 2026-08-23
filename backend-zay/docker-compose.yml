@@ -1,0 +1,20 @@
+# Ne pas utiliser pour le dev quotidien.
+# Stack canonique : docker-compose.yml à la racine (Postgres + front)
+# + Nest sur l’hôte (npm run start:dev). Ce fichier redémarrait un 2e API sur :4000.
+services:
+  backend-zay:
+    profiles: ["docker-backend"]
+    build: .
+    container_name: backend-zay
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://zay:zay_secret@postgres-zay:5432/zay_db?schema=public
+      CORS_ORIGINS: http://localhost:9002,http://127.0.0.1:9002
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      - ./uploads:/app/uploads
+    restart: "no"

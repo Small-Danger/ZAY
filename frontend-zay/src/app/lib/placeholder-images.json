@@ -1,0 +1,71 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-shopper",
+      "description": "Woman with shopping bags",
+      "imageUrl": "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&q=80&w=800",
+      "imageHint": "woman shopping"
+    },
+    {
+      "id": "hero-model",
+      "description": "Fashion model posing",
+      "imageUrl": "https://images.unsplash.com/photo-1539109132314-3477524c8595?auto=format&fit=crop&q=80&w=800",
+      "imageHint": "fashion model"
+    },
+    {
+      "id": "event-summer-break",
+      "description": "Summer Break Neon Party Background",
+      "imageUrl": "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&q=80&w=1200",
+      "imageHint": "neon party beach sunset"
+    },
+    {
+      "id": "product-robe-aurore",
+      "description": "Robe Aurore en soie",
+      "imageUrl": "https://i.pinimg.com/1200x/b3/d0/91/b3d091b3d99ca68aaecb78da5e100622.jpg",
+      "imageHint": "silk dress"
+    },
+    {
+      "id": "product-pull-elara",
+      "description": "Pull Elara cachemire",
+      "imageUrl": "https://i.pinimg.com/736x/42/85/fd/4285fdd6b14f2f361a9257af2ddd0459.jpg",
+      "imageHint": "beige sweater"
+    },
+    {
+      "id": "product-blazer-celeste",
+      "description": "Blazer Céleste",
+      "imageUrl": "https://i.pinimg.com/736x/04/fb/ed/04fbed83b91c1023ac888df1673f3b1d.jpg",
+      "imageHint": "tailored blazer"
+    },
+    {
+      "id": "product-jupe-rosalie",
+      "description": "Jupe Rosalie plissée",
+      "imageUrl": "https://i.pinimg.com/736x/9b/03/6d/9b036d529176aaee8dd6ff74a76b097c.jpg",
+      "imageHint": "pleated skirt"
+    },
+    {
+      "id": "insta-1",
+      "description": "ZAY Atelier Instagram - Silk Detail",
+      "imageUrl": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=80&w=600",
+      "imageHint": "luxury silk"
+    },
+    {
+      "id": "insta-2",
+      "description": "ZAY Atelier Instagram - Model Pose",
+      "imageUrl": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=600",
+      "imageHint": "fashion model"
+    },
+    {
+      "id": "insta-3",
+      "description": "ZAY Atelier Instagram - Elegant Dress",
+      "imageUrl": "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&q=80&w=600",
+      "imageHint": "elegant dress"
+    },
+    {
+      "id": "insta-4",
+      "description": "ZAY Atelier Instagram - Studio Shot",
+      "imageUrl": "https://images.unsplash.com/photo-1539109132314-3477524c8595?auto=format&fit=crop&q=80&w=600",
+      "imageHint": "studio fashion"
+    }
+  ]
+}
