@@ -57,7 +57,7 @@ export class CategoriesService {
   async create(dto: CreateCategoryDto, imageFile?: Express.Multer.File) {
     const name = dto.name.trim().toUpperCase();
     const image = imageFile
-      ? this.uploads.saveImage(imageFile, 'categories')
+      ? await this.uploads.saveImage(imageFile, 'categories')
       : null;
 
     try {
@@ -67,7 +67,7 @@ export class CategoriesService {
       await this.redis.invalidateCatalog();
       return created;
     } catch (error) {
-      if (image) this.uploads.deleteIfOwned(image);
+      if (image) await this.uploads.deleteIfOwned(image);
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -92,7 +92,7 @@ export class CategoriesService {
 
     let newImage: string | undefined;
     if (imageFile) {
-      newImage = this.uploads.saveImage(imageFile, 'categories');
+      newImage = await this.uploads.saveImage(imageFile, 'categories');
       data.image = newImage;
     }
 
@@ -106,13 +106,13 @@ export class CategoriesService {
       });
 
       if (newImage && existing.image) {
-        this.uploads.deleteIfOwned(existing.image);
+        await this.uploads.deleteIfOwned(existing.image);
       }
 
       await this.redis.invalidateCatalog();
       return updated;
     } catch (error) {
-      if (newImage) this.uploads.deleteIfOwned(newImage);
+      if (newImage) await this.uploads.deleteIfOwned(newImage);
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -126,7 +126,7 @@ export class CategoriesService {
   async remove(id: string) {
     const existing = await this.findOne(id);
     await this.prisma.category.delete({ where: { id } });
-    this.uploads.deleteIfOwned(existing.image);
+    await this.uploads.deleteIfOwned(existing.image);
     await this.redis.invalidateCatalog();
   }
 
@@ -152,7 +152,7 @@ export class CategoriesService {
     await this.findOne(categoryId);
     const name = dto.name.trim();
     const image = imageFile
-      ? this.uploads.saveImage(imageFile, 'subcategories')
+      ? await this.uploads.saveImage(imageFile, 'subcategories')
       : null;
 
     try {
@@ -166,7 +166,7 @@ export class CategoriesService {
       await this.redis.invalidateCatalog();
       return created;
     } catch (error) {
-      if (image) this.uploads.deleteIfOwned(image);
+      if (image) await this.uploads.deleteIfOwned(image);
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -200,7 +200,7 @@ export class CategoriesService {
 
     let newImage: string | undefined;
     if (imageFile) {
-      newImage = this.uploads.saveImage(imageFile, 'subcategories');
+      newImage = await this.uploads.saveImage(imageFile, 'subcategories');
       data.image = newImage;
     }
 
@@ -211,13 +211,13 @@ export class CategoriesService {
       });
 
       if (newImage && subcategory.image) {
-        this.uploads.deleteIfOwned(subcategory.image);
+        await this.uploads.deleteIfOwned(subcategory.image);
       }
 
       await this.redis.invalidateCatalog();
       return updated;
     } catch (error) {
-      if (newImage) this.uploads.deleteIfOwned(newImage);
+      if (newImage) await this.uploads.deleteIfOwned(newImage);
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -242,7 +242,7 @@ export class CategoriesService {
     }
 
     await this.prisma.subcategory.delete({ where: { id: subId } });
-    this.uploads.deleteIfOwned(subcategory.image);
+    await this.uploads.deleteIfOwned(subcategory.image);
     await this.redis.invalidateCatalog();
   }
 }

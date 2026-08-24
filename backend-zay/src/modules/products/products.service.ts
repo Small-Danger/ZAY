@@ -98,7 +98,7 @@ export class ProductsService {
     }
 
     const image = imageFile
-      ? this.uploads.saveImage(imageFile, 'products')
+      ? await this.uploads.saveImage(imageFile, 'products')
       : dto.image?.trim();
 
     if (!image) {
@@ -107,8 +107,8 @@ export class ProductsService {
       );
     }
 
-    const gallerySaved = galleryFiles.map((f) =>
-      this.uploads.saveImage(f, 'products'),
+    const gallerySaved = await Promise.all(
+      galleryFiles.map((f) => this.uploads.saveImage(f, 'products')),
     );
     const images = [
       ...(dto.images ?? []).map((u) => u.trim()).filter(Boolean),
@@ -161,8 +161,8 @@ export class ProductsService {
       await this.redis.invalidateCatalog();
       return created;
     } catch (error) {
-      if (imageFile) this.uploads.deleteIfOwned(image);
-      for (const g of gallerySaved) this.uploads.deleteIfOwned(g);
+      if (imageFile) await this.uploads.deleteIfOwned(image);
+      for (const g of gallerySaved) await this.uploads.deleteIfOwned(g);
       this.rethrowUnique(error);
     }
   }
@@ -206,11 +206,11 @@ export class ProductsService {
 
     let newImage: string | undefined;
     if (imageFile) {
-      newImage = this.uploads.saveImage(imageFile, 'products');
+      newImage = await this.uploads.saveImage(imageFile, 'products');
     }
 
-    const gallerySaved = galleryFiles.map((f) =>
-      this.uploads.saveImage(f, 'products'),
+    const gallerySaved = await Promise.all(
+      galleryFiles.map((f) => this.uploads.saveImage(f, 'products')),
     );
     const nextImages =
       dto.images !== undefined
@@ -273,7 +273,7 @@ export class ProductsService {
       });
 
       if (newImage && existing.image) {
-        this.uploads.deleteIfOwned(existing.image);
+        await this.uploads.deleteIfOwned(existing.image);
       }
 
       if (replacingVariants) {
@@ -288,14 +288,14 @@ export class ProductsService {
       await this.redis.invalidateCatalog();
       return this.findOne(existing.id);
     } catch (error) {
-      if (newImage) this.uploads.deleteIfOwned(newImage);
+      if (newImage) await this.uploads.deleteIfOwned(newImage);
       this.rethrowUnique(error);
     }
   }
 
   async remove(id: string) {
     const existing = await this.findOne(id);
-    this.uploads.deleteIfOwned(existing.image);
+    await this.uploads.deleteIfOwned(existing.image);
     await this.prisma.product.delete({ where: { id: existing.id } });
     await this.redis.invalidateCatalog();
   }

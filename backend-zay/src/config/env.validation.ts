@@ -56,6 +56,10 @@ class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   REDIS_URL!: string;
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_URL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
