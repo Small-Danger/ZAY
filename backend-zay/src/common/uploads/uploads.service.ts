@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import '../../cloudinary-env';
 import { v2 as cloudinary } from 'cloudinary';
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { extname, join } from 'path';
@@ -35,7 +36,7 @@ export class UploadsService {
   }
 
   private get useCloudinary() {
-    return Boolean(process.env.CLOUDINARY_URL?.trim());
+    return (process.env.CLOUDINARY_URL ?? '').startsWith('cloudinary://');
   }
 
   /**

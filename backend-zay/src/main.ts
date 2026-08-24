@@ -1,3 +1,4 @@
+import './cloudinary-env';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
