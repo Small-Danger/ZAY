@@ -66,10 +66,14 @@ export class UploadsService {
         return await this.uploadToCloudinary(file, folder);
       } catch (err) {
         const message = this.cloudinaryErrorMessage(err);
-        this.logger.error(
-          `Cloudinary refusé (${this.credentials.cloudName}): ${message} — repli disque /uploads`,
+        this.logger.error(`Cloudinary refusé (${this.credentials.cloudName}): ${message}`);
+        if (process.env.NODE_ENV !== 'production') {
+          this.logger.warn('Repli disque autorisé en local uniquement');
+          return this.saveToDisk(file, folder);
+        }
+        throw new BadRequestException(
+          `Upload Cloudinary échoué: ${message}. La photo n’a pas été enregistrée (elle disparaîtrait au prochain déploiement).`,
         );
-        return this.saveToDisk(file, folder);
       }
     }
 
@@ -120,7 +124,9 @@ export class UploadsService {
       {
         folder: `zay/${folder}`,
         resource_type: 'image',
-        signature_version: 1,
+        cloud_name: this.credentials.cloudName,
+        api_key: this.credentials.apiKey,
+        api_secret: this.credentials.apiSecret,
       },
     );
 
@@ -148,8 +154,6 @@ export class UploadsService {
       api_key: creds.apiKey,
       api_secret: creds.apiSecret,
       secure: true,
-      signature_algorithm: 'sha1',
-      signature_version: 1,
     });
   }
 
