@@ -9,7 +9,8 @@ import {
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle, 
+  DialogTitle,
+  DialogDescription,
   DialogTrigger,
   DialogFooter
 } from '@/components/ui/dialog';
@@ -117,6 +118,9 @@ export default function AdminCategoriesPage() {
           <DialogContent className="rounded-none border-zay-border">
             <DialogHeader>
               <DialogTitle className="text-2xl font-headline italic">Créer une Catégorie</DialogTitle>
+              <DialogDescription className="sr-only">
+                Formulaire pour créer une catégorie du catalogue.
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddCategory} className="space-y-6 pt-4">
               <div className="space-y-2">
@@ -200,6 +204,9 @@ export default function AdminCategoriesPage() {
                 <DialogContent className="rounded-none border-zay-border">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-headline italic">Ajouter une Sous-catégorie</DialogTitle>
+                    <DialogDescription className="sr-only">
+                      Formulaire pour ajouter une sous-catégorie.
+                    </DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleAddSubcategory} className="space-y-6 pt-4">
                     <div className="space-y-2">

@@ -29,6 +29,15 @@ export class UploadsService {
     this.ensureDir(join(this.rootDir, 'subcategories'));
     this.ensureDir(join(this.rootDir, 'products'));
     if (this.useCloudinary) {
+      const parsed = this.parseCloudinaryUrl(process.env.CLOUDINARY_URL!);
+      if (parsed) {
+        cloudinary.config({
+          cloud_name: parsed.cloudName,
+          api_key: parsed.apiKey,
+          api_secret: parsed.apiSecret,
+          secure: true,
+        });
+      }
       this.logger.log('Uploads → Cloudinary');
     } else {
       this.logger.log('Uploads → disque local /uploads');
@@ -94,28 +103,47 @@ export class UploadsService {
     }
   }
 
-  private uploadToCloudinary(
+  private async uploadToCloudinary(
     file: Express.Multer.File,
     folder: string,
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: `zay/${folder}`,
-          resource_type: 'image',
-          unique_filename: true,
-          overwrite: false,
-        },
-        (err, result) => {
-          if (err || !result?.secure_url) {
-            reject(err ?? new Error('Upload Cloudinary échoué'));
-            return;
-          }
-          resolve(result.secure_url);
-        },
-      );
-      stream.end(file.buffer);
-    });
+    try {
+      const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      const result = await cloudinary.uploader.upload(dataUri, {
+        folder: `zay/${folder}`,
+        resource_type: 'image',
+        unique_filename: true,
+        overwrite: false,
+      });
+      if (!result.secure_url) {
+        throw new Error('Cloudinary n’a pas renvoyé d’URL');
+      }
+      return result.secure_url;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Upload Cloudinary échoué';
+      this.logger.error(message);
+      throw new BadRequestException(message);
+    }
+  }
+
+  private parseCloudinaryUrl(url: string): {
+    cloudName: string;
+    apiKey: string;
+    apiSecret: string;
+  } | null {
+    const body = url.replace(/^cloudinary:\/\//, '');
+    const at = body.lastIndexOf('@');
+    if (at < 0) return null;
+    const creds = body.slice(0, at);
+    const cloudName = body.slice(at + 1);
+    const colon = creds.indexOf(':');
+    if (colon < 0 || !cloudName) return null;
+    return {
+      apiKey: creds.slice(0, colon),
+      apiSecret: creds.slice(colon + 1),
+      cloudName,
+    };
   }
 
   /** `zay/products/abc` depuis une URL res.cloudinary.com */
