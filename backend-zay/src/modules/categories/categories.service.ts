@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import { UploadsService } from '../../common/uploads/uploads.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateSubcategoryDto } from './dto/create-subcategory.dto';
@@ -16,10 +17,15 @@ export class CategoriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
+    private readonly redis: RedisService,
   ) {}
 
-  findAll() {
-    return this.prisma.category.findMany({
+  async findAll() {
+    const cacheKey = this.redis.catalogCategoriesKey();
+    const cached = await this.redis.getJson<unknown[]>(cacheKey);
+    if (cached) return cached;
+
+    const categories = await this.prisma.category.findMany({
       orderBy: { name: 'asc' },
       include: {
         subcategories: {
@@ -27,6 +33,8 @@ export class CategoriesService {
         },
       },
     });
+    await this.redis.setJson(cacheKey, categories);
+    return categories;
   }
 
   async findOne(id: string) {
@@ -53,9 +61,11 @@ export class CategoriesService {
       : null;
 
     try {
-      return await this.prisma.category.create({
+      const created = await this.prisma.category.create({
         data: { name, image },
       });
+      await this.redis.invalidateCatalog();
+      return created;
     } catch (error) {
       if (image) this.uploads.deleteIfOwned(image);
       if (
@@ -99,6 +109,7 @@ export class CategoriesService {
         this.uploads.deleteIfOwned(existing.image);
       }
 
+      await this.redis.invalidateCatalog();
       return updated;
     } catch (error) {
       if (newImage) this.uploads.deleteIfOwned(newImage);
@@ -116,14 +127,21 @@ export class CategoriesService {
     const existing = await this.findOne(id);
     await this.prisma.category.delete({ where: { id } });
     this.uploads.deleteIfOwned(existing.image);
+    await this.redis.invalidateCatalog();
   }
 
   async findSubcategories(categoryId: string) {
     await this.findOne(categoryId);
-    return this.prisma.subcategory.findMany({
+    const cacheKey = this.redis.catalogSubcategoriesKey(categoryId);
+    const cached = await this.redis.getJson<unknown[]>(cacheKey);
+    if (cached) return cached;
+
+    const rows = await this.prisma.subcategory.findMany({
       where: { categoryId },
       orderBy: { name: 'asc' },
     });
+    await this.redis.setJson(cacheKey, rows);
+    return rows;
   }
 
   async createSubcategory(
@@ -138,13 +156,15 @@ export class CategoriesService {
       : null;
 
     try {
-      return await this.prisma.subcategory.create({
+      const created = await this.prisma.subcategory.create({
         data: {
           name,
           categoryId,
           image,
         },
       });
+      await this.redis.invalidateCatalog();
+      return created;
     } catch (error) {
       if (image) this.uploads.deleteIfOwned(image);
       if (
@@ -194,6 +214,7 @@ export class CategoriesService {
         this.uploads.deleteIfOwned(subcategory.image);
       }
 
+      await this.redis.invalidateCatalog();
       return updated;
     } catch (error) {
       if (newImage) this.uploads.deleteIfOwned(newImage);
@@ -222,5 +243,6 @@ export class CategoriesService {
 
     await this.prisma.subcategory.delete({ where: { id: subId } });
     this.uploads.deleteIfOwned(subcategory.image);
+    await this.redis.invalidateCatalog();
   }
 }

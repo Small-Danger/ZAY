@@ -6,6 +6,9 @@ import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { UploadsModule } from './common/uploads/uploads.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './redis/redis.module';
+import { RedisService } from './redis/redis.service';
+import { RedisThrottlerStorage } from './redis/redis.throttler-storage';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -27,8 +30,14 @@ import { StripeModule } from './modules/payments/stripe.module';
       load: [configuration],
       validate: validateEnv,
     }),
-    ThrottlerModule.forRoot({
-      throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }],
+    RedisModule,
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [RedisService],
+      useFactory: (redis: RedisService) => ({
+        throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }],
+        storage: new RedisThrottlerStorage(redis),
+      }),
     }),
     UploadsModule,
     PrismaModule,

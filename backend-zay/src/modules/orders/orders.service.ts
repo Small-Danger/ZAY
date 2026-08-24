@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { OrderStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import type { AuthUser } from '../auth/decorators/current-user.decorator';
 import { PromosService } from '../promos/promos.service';
 import { computeProductStatus } from '../products/product.helpers';
@@ -31,6 +32,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly promosService: PromosService,
     private readonly stripe: StripeService,
+    private readonly redis: RedisService,
   ) {}
 
   async checkout(user: AuthUser, dto: CreateOrderDto) {
@@ -250,6 +252,8 @@ export class OrdersService {
       });
     });
 
+    await this.redis.invalidateCatalog();
+
     let session: { id: string; url: string };
     try {
       session = await this.stripe.createCheckoutSession({
@@ -450,7 +454,7 @@ export class OrdersService {
     const releasePromo =
       restock && this.shouldReleasePromo(existing.status);
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (restock) {
         await this.restockItems(tx, existing.items);
       }
@@ -472,6 +476,12 @@ export class OrdersService {
         include: orderInclude,
       });
     });
+
+    if (restock) {
+      await this.redis.invalidateCatalog();
+    }
+
+    return updated;
   }
 
   async cancelUnpaidFromStripeSession(sessionId: string) {
@@ -520,13 +530,13 @@ export class OrdersService {
   }
 
   private async cancelUnpaidOrderById(orderId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const current = await tx.order.findUnique({
         where: { id: orderId },
         include: { items: true },
       });
       if (!current || current.status !== OrderStatus.PENDING) {
-        return current;
+        return { order: current, restocked: false };
       }
 
       await this.restockItems(tx, current.items);
@@ -537,12 +547,19 @@ export class OrdersService {
         });
       }
 
-      return tx.order.update({
+      const order = await tx.order.update({
         where: { id: current.id },
         data: { status: OrderStatus.CANCELLED },
         include: orderInclude,
       });
+      return { order, restocked: true };
     });
+
+    if (result.restocked) {
+      await this.redis.invalidateCatalog();
+    }
+
+    return result.order;
   }
 
   private async restockItems(

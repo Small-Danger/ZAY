@@ -18,6 +18,21 @@ services:
       retries: 10
     restart: unless-stopped
 
+  redis-zay:
+    image: redis:7-alpine
+    container_name: redis-zay
+    ports:
+      # Port hôte peu courant pour éviter un Redis Windows local (6379)
+      - "56379:6379"
+    volumes:
+      - redis_zay_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   backend-zay:
     build:
       context: ./backend-zay
@@ -37,6 +52,7 @@ services:
       ADMIN_EMAIL: admin@zay.local
       ADMIN_PASSWORD: Admin123!
       FRONTEND_URL: http://localhost:9002
+      REDIS_URL: redis://redis-zay:6379
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "1000"
     volumes:
@@ -45,6 +61,8 @@ services:
       - ./backend-zay/uploads:/app/uploads
     depends_on:
       postgres-zay:
+        condition: service_healthy
+      redis-zay:
         condition: service_healthy
     healthcheck:
       test:
@@ -92,3 +110,4 @@ services:
 
 volumes:
   postgres_zay_data:
+  redis_zay_data:

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import { UploadsService } from '../../common/uploads/uploads.service';
 import {
   CreateProductDto,
@@ -29,9 +30,14 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
+    private readonly redis: RedisService,
   ) {}
 
-  findAll(query: ProductQueryDto) {
+  async findAll(query: ProductQueryDto) {
+    const cacheKey = this.redis.catalogProductsKey(query);
+    const cached = await this.redis.getJson<unknown[]>(cacheKey);
+    if (cached) return cached;
+
     const where: Prisma.ProductWhereInput = {};
 
     if (query.categoryId) where.categoryId = query.categoryId;
@@ -45,14 +51,22 @@ export class ProductsService {
       ];
     }
 
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where,
       orderBy: { name: 'asc' },
       include: productInclude,
     });
+    await this.redis.setJson(cacheKey, products);
+    return products;
   }
 
   async findOne(idOrSlug: string) {
+    const cacheKey = this.redis.catalogProductKey(idOrSlug);
+    const cached = await this.redis.getJson<
+      Prisma.ProductGetPayload<{ include: typeof productInclude }>
+    >(cacheKey);
+    if (cached) return cached;
+
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         idOrSlug,
@@ -69,6 +83,7 @@ export class ProductsService {
       throw new NotFoundException(`Product "${idOrSlug}" not found`);
     }
 
+    await this.redis.setJson(cacheKey, product);
     return product;
   }
 
@@ -112,7 +127,7 @@ export class ProductsService {
       (dto.originalPrice != null && dto.originalPrice > dto.price);
 
     try {
-      return await this.prisma.product.create({
+      const created = await this.prisma.product.create({
         data: {
           name: dto.name.trim(),
           slug,
@@ -143,6 +158,8 @@ export class ProductsService {
         },
         include: productInclude,
       });
+      await this.redis.invalidateCatalog();
+      return created;
     } catch (error) {
       if (imageFile) this.uploads.deleteIfOwned(image);
       for (const g of gallerySaved) this.uploads.deleteIfOwned(g);
@@ -268,6 +285,7 @@ export class ProductsService {
         });
       }
 
+      await this.redis.invalidateCatalog();
       return this.findOne(existing.id);
     } catch (error) {
       if (newImage) this.uploads.deleteIfOwned(newImage);
@@ -279,6 +297,7 @@ export class ProductsService {
     const existing = await this.findOne(id);
     this.uploads.deleteIfOwned(existing.image);
     await this.prisma.product.delete({ where: { id: existing.id } });
+    await this.redis.invalidateCatalog();
   }
 
   async addVariant(productId: string, dto: CreateProductVariantDto) {
@@ -397,6 +416,9 @@ export class ProductsService {
         status: computeProductStatus(stock),
       },
       include: productInclude,
+    }).then(async (product) => {
+      await this.redis.invalidateCatalog();
+      return product;
     });
   }
 

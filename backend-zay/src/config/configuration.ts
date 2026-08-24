@@ -64,5 +64,14 @@ export default registerAs('app', () => {
     stripeWebhookSecret: (process.env.STRIPE_WEBHOOK_SECRET ?? '')
       .trim()
       .replace(/[\r\n]/g, ''),
+    redisUrl: (() => {
+      const url = process.env.REDIS_URL?.trim() || '';
+      if (isProd && !url) {
+        throw new Error(
+          'REDIS_URL doit être défini en production (plugin Railway Redis).',
+        );
+      }
+      return url || 'redis://127.0.0.1:56379';
+    })(),
   };
 });

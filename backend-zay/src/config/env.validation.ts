@@ -52,6 +52,10 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   STRIPE_WEBHOOK_SECRET?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  REDIS_URL!: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

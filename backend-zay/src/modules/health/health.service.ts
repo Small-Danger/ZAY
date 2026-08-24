@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 
 @Injectable()
 export class HealthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   getRoot(): string {
     return 'ZAY API is running';
@@ -11,6 +15,7 @@ export class HealthService {
 
   async getHealth() {
     let database: 'up' | 'down' = 'down';
+    let redis: 'up' | 'down' = 'down';
 
     try {
       await this.prisma.$queryRaw`SELECT 1`;
@@ -19,10 +24,13 @@ export class HealthService {
       database = 'down';
     }
 
+    redis = (await this.redis.ping()) ? 'up' : 'down';
+
     return {
-      status: database === 'up' ? 'ok' : 'degraded',
+      status: database === 'up' && redis === 'up' ? 'ok' : 'degraded',
       service: 'backend-zay',
       database,
+      redis,
       timestamp: new Date().toISOString(),
     };
   }
