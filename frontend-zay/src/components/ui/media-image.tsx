@@ -15,6 +15,7 @@ export function needsDirectMedia(src: ImageProps['src']): boolean {
     src.startsWith('blob:') ||
     src.startsWith('data:') ||
     src.includes('/uploads/') ||
+    src.includes('res.cloudinary.com') ||
     (!!API_ORIGIN && src.startsWith(API_ORIGIN)) ||
     src.startsWith('http://localhost:') ||
     src.startsWith('http://127.0.0.1:')
