@@ -36,6 +36,7 @@ import {
 import { getSubcategoriesFor, useCategories } from '@/hooks/use-categories';
 import { cn } from '@/lib/utils';
 import { notifyError, notifySuccess } from '@/lib/notify';
+import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
 import { MediaImage } from '@/components/ui/media-image';
 
 function useObjectUrl(file: File | null) {
@@ -315,6 +316,11 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="space-y-8">
+      <AdminBusyOverlay
+        show={!!deletingId}
+        label="Suppression…"
+        placement="fixed"
+      />
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-headline italic">Structure du Catalogue</h1>
@@ -340,7 +346,10 @@ export default function AdminCategoriesPage() {
           }}
         >
           <DialogContent
-            className="rounded-none border-zay-border max-w-[420px] p-5 gap-3"
+            className={cn(
+              'rounded-none border-zay-border max-w-[420px] p-5 gap-3 overflow-hidden',
+              saving && '[&>button]:pointer-events-none [&>button]:opacity-0',
+            )}
             onPointerDownOutside={(e) => {
               if (saving) e.preventDefault();
             }}
@@ -348,6 +357,10 @@ export default function AdminCategoriesPage() {
               if (saving) e.preventDefault();
             }}
           >
+            <AdminBusyOverlay
+              show={saving}
+              label={editingCat ? 'Mise à jour…' : 'Enregistrement…'}
+            />
             <DialogHeader>
               <DialogTitle className="text-xl font-headline italic">
                 {editingCat ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
@@ -484,7 +497,10 @@ export default function AdminCategoriesPage() {
                   }}
                 >
                 <DialogContent
-                  className="rounded-none border-zay-border max-w-[420px] p-5 gap-3"
+                  className={cn(
+                    'rounded-none border-zay-border max-w-[420px] p-5 gap-3 overflow-hidden',
+                    saving && '[&>button]:pointer-events-none [&>button]:opacity-0',
+                  )}
                   onPointerDownOutside={(e) => {
                     if (saving) e.preventDefault();
                   }}
@@ -492,6 +508,10 @@ export default function AdminCategoriesPage() {
                     if (saving) e.preventDefault();
                   }}
                 >
+                  <AdminBusyOverlay
+                    show={saving}
+                    label={editingSub ? 'Mise à jour…' : 'Enregistrement…'}
+                  />
                   <DialogHeader>
                     <DialogTitle className="text-xl font-headline italic">
                       {editingSub ? 'Modifier la sous-catégorie' : 'Nouvelle sous-catégorie'}

@@ -28,7 +28,8 @@ import { API_ORIGIN } from '@/lib/api/config';
 import { getSubcategoriesFor, useCategories } from '@/hooks/use-categories';
 import { useProducts } from '@/hooks/use-products';
 import type { ProductVariantPayload, UiProduct } from '@/lib/api';
-import { notify, notifyError } from '@/lib/notify';
+import { notify, notifyError, notifySuccess } from '@/lib/notify';
+import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
 
 type VariantFormRow = {
   key: string;
@@ -70,6 +71,24 @@ const emptyVariant = (): VariantFormRow => ({
   stock: '0',
 });
 
+function sanitizeStock(raw: string): string {
+  if (raw.trim() === '') return '';
+  const n = Number(raw);
+  if (Number.isFinite(n) && n < 0) return '0';
+  const digits = raw.replace(/[^\d]/g, '');
+  if (digits === '') return '';
+  return String(parseInt(digits, 10));
+}
+
+function parseStock(raw: string): number {
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function blockNonIntegerKeys(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (['-', '+', 'e', 'E', '.', ','].includes(e.key)) e.preventDefault();
+}
+
 function toVariantPayloads(rows: VariantFormRow[]): ProductVariantPayload[] {
   return rows
     .filter((v) => v.size.trim() && v.colorName.trim())
@@ -77,7 +96,7 @@ function toVariantPayloads(rows: VariantFormRow[]): ProductVariantPayload[] {
       size: v.size.trim(),
       colorName: v.colorName.trim(),
       colorHex: v.colorHex.trim() || undefined,
-      stock: parseInt(v.stock, 10) || 0,
+      stock: parseStock(v.stock),
     }));
 }
 
@@ -151,8 +170,13 @@ function VariantsFields({
                 <Input
                   type="number"
                   min={0}
+                  step={1}
+                  inputMode="numeric"
                   value={v.stock}
-                  onChange={(e) => updateRow(v.key, { stock: e.target.value })}
+                  onKeyDown={blockNonIntegerKeys}
+                  onChange={(e) =>
+                    updateRow(v.key, { stock: sanitizeStock(e.target.value) })
+                  }
                   className="rounded-none h-10 font-bold text-xs"
                 />
               </div>
@@ -173,6 +197,277 @@ function VariantsFields({
   );
 }
 
+type GalleryThumb = { key: string; src: string };
+
+type ProductFormFieldsProps = {
+  name: string;
+  categoryId: string;
+  subcategoryId: string;
+  price: string;
+  originalPrice: string;
+  stock: string;
+  coverPreview: string;
+  gallery: GalleryThumb[];
+  description: string;
+  badge: string;
+  variants: VariantFormRow[];
+  categories: ReturnType<typeof useCategories>['data'];
+  coverRef: React.RefObject<HTMLInputElement | null>;
+  galleryRef: React.RefObject<HTMLInputElement | null>;
+  onCoverFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onGalleryFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemoveGallery: (key: string) => void;
+  onChange: (patch: {
+    name?: string;
+    categoryId?: string;
+    subcategoryId?: string;
+    price?: string;
+    originalPrice?: string;
+    stock?: string;
+    description?: string;
+    badge?: string;
+    variants?: VariantFormRow[];
+  }) => void;
+};
+
+function ProductFormFields({
+  name,
+  categoryId,
+  subcategoryId,
+  price,
+  originalPrice,
+  stock,
+  coverPreview,
+  gallery,
+  description,
+  badge,
+  variants,
+  categories,
+  coverRef,
+  galleryRef,
+  onCoverFile,
+  onGalleryFile,
+  onRemoveGallery,
+  onChange,
+}: ProductFormFieldsProps) {
+  const subs = getSubcategoriesFor(categories, categoryId);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-4">
+        <button
+          type="button"
+          onClick={() => coverRef.current?.click()}
+          className={cn(
+            'relative h-36 w-28 shrink-0 overflow-hidden border bg-zay-main group',
+            coverPreview ? 'border-zay-rose' : 'border-dashed border-zay-border',
+          )}
+        >
+          {coverPreview ? (
+            <>
+              <MediaImage src={coverPreview} alt="Couverture" fill className="object-cover" />
+              <span className="absolute inset-x-0 bottom-0 bg-black/55 py-1 text-center text-[0.5rem] font-bold uppercase tracking-widest text-white opacity-0 group-hover:opacity-100">
+                Changer
+              </span>
+            </>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-zay-text-muted px-2">
+              <Upload className="w-5 h-5" />
+              <p className="text-[0.5rem] font-bold uppercase tracking-wider text-center leading-tight">
+                Photo
+              </p>
+            </div>
+          )}
+          <input
+            type="file"
+            ref={coverRef}
+            className="hidden"
+            accept="image/*"
+            onChange={onCoverFile}
+          />
+        </button>
+
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="space-y-1">
+            <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+              Nom
+            </Label>
+            <Input
+              required
+              value={name}
+              onChange={(e) => onChange({ name: e.target.value })}
+              className="rounded-none h-10 font-bold"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                Catégorie
+              </Label>
+              <select
+                required
+                className="w-full h-10 border border-zay-border rounded-none text-[0.65rem] font-bold uppercase tracking-widest px-3"
+                value={categoryId}
+                onChange={(e) =>
+                  onChange({ categoryId: e.target.value, subcategoryId: '' })
+                }
+              >
+                <option value="">Sélectionner</option>
+                {categories?.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                Sous-catégorie
+              </Label>
+              <select
+                className="w-full h-10 border border-zay-border rounded-none text-[0.65rem] font-bold uppercase tracking-widest px-3 disabled:opacity-50"
+                value={subcategoryId}
+                onChange={(e) => onChange({ subcategoryId: e.target.value })}
+                disabled={!categoryId}
+              >
+                <option value="">Aucune</option>
+                {subs?.map((sub) => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+            Prix (€)
+          </Label>
+          <Input
+            required
+            type="number"
+            step="0.01"
+            min="0"
+            value={price}
+            onChange={(e) => onChange({ price: e.target.value })}
+            className="rounded-none h-10 font-bold"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+            Prix barré
+          </Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={originalPrice}
+            onChange={(e) => onChange({ originalPrice: e.target.value })}
+            placeholder="—"
+            className="rounded-none h-10 font-bold"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+            Stock
+          </Label>
+          <Input
+            required={variants.length === 0}
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            value={stock}
+            onKeyDown={blockNonIntegerKeys}
+            onChange={(e) => onChange({ stock: sanitizeStock(e.target.value) })}
+            disabled={variants.length > 0}
+            className="rounded-none h-10 font-bold disabled:opacity-50"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+          Badge
+        </Label>
+        <Input
+          value={badge}
+          onChange={(e) => onChange({ badge: e.target.value })}
+          placeholder="NEW, PROMO…"
+          className="rounded-none h-10 font-bold"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+            Galerie
+          </Label>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => galleryRef.current?.click()}
+            className="h-8 rounded-none border-zay-border px-3 text-[0.55rem] font-bold uppercase tracking-widest"
+          >
+            <Plus className="w-3 h-3 mr-1" /> Photos
+          </Button>
+        </div>
+        <input
+          type="file"
+          ref={galleryRef}
+          className="hidden"
+          accept="image/*"
+          multiple
+          onChange={onGalleryFile}
+        />
+        {gallery.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {gallery.map((item) => (
+              <div
+                key={item.key}
+                className="relative h-16 w-12 overflow-hidden bg-zay-gray"
+              >
+                <MediaImage src={item.src} alt="" fill className="object-cover" />
+                <button
+                  type="button"
+                  className="absolute right-0 top-0 bg-white/90 px-1 text-[0.5rem] font-bold leading-4"
+                  onClick={() => onRemoveGallery(item.key)}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[0.6rem] text-zay-text-muted italic">
+            Optionnel — photos supplémentaires de la fiche.
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+          Description
+        </Label>
+        <Textarea
+          value={description}
+          onChange={(e) => onChange({ description: e.target.value })}
+          className="rounded-none min-h-[72px] font-bold text-sm"
+        />
+      </div>
+
+      <VariantsFields
+        variants={variants}
+        onChange={(next) => onChange({ variants: next })}
+      />
+    </div>
+  );
+}
+
 export default function AdminProductsPage() {
   const { data: categories } = useCategories();
   const { data: products, loading, refetch } = useProducts();
@@ -181,6 +476,7 @@ export default function AdminProductsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [busyLabel, setBusyLabel] = useState('Enregistrement…');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const galleryAddRef = useRef<HTMLInputElement>(null);
@@ -203,9 +499,6 @@ export default function AdminProductsPage() {
   });
 
   const [editingProduct, setEditingProduct] = useState<EditableProduct | null>(null);
-
-  const subcategories = getSubcategoriesFor(categories, newProduct.categoryId);
-  const editSubcategories = getSubcategoriesFor(categories, editingProduct?.categoryId);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, mode: 'add' | 'edit') => {
     const file = e.target.files?.[0];
@@ -253,6 +546,7 @@ export default function AdminProductsPage() {
       return;
     }
 
+    setBusyLabel('Enregistrement…');
     setSaving(true);
     try {
       const variants = toVariantPayloads(newProduct.variants);
@@ -264,7 +558,7 @@ export default function AdminProductsPage() {
         originalPrice: newProduct.originalPrice.trim()
           ? parseFloat(newProduct.originalPrice)
           : undefined,
-        stock: variants.length > 0 ? undefined : parseInt(newProduct.stock) || 0,
+        stock: variants.length > 0 ? undefined : parseStock(newProduct.stock),
         image: newProduct.imageFile
           ? undefined
           : newProduct.image || `https://picsum.photos/seed/${Date.now()}/400/600`,
@@ -280,6 +574,7 @@ export default function AdminProductsPage() {
         variants: variants.length > 0 ? variants : undefined,
       });
 
+      notifySuccess(`Produit « ${newProduct.name.trim()} » créé.`);
       setIsAddModalOpen(false);
       setNewProduct({ 
         name: '', categoryId: '', subcategoryId: '', price: '', 
@@ -300,6 +595,7 @@ export default function AdminProductsPage() {
     e.preventDefault();
     if (!editingProduct || saving) return;
 
+    setBusyLabel('Mise à jour…');
     setSaving(true);
     try {
       const variants = toVariantPayloads(editingProduct.variants);
@@ -312,7 +608,7 @@ export default function AdminProductsPage() {
         originalPrice: editingProduct.originalPrice.trim()
           ? parseFloat(editingProduct.originalPrice)
           : null,
-        stock: variants.length > 0 ? undefined : parseInt(editingProduct.stock) || 0,
+        stock: variants.length > 0 ? undefined : parseStock(editingProduct.stock),
         image: editingProduct.imageFile
           ? undefined
           : toStoragePath(editingProduct.image),
@@ -330,6 +626,7 @@ export default function AdminProductsPage() {
         variants,
       });
 
+      notifySuccess(`Produit « ${editingProduct.name.trim()} » mis à jour.`);
       setIsEditModalOpen(false);
       await refetch();
     } catch (err) {
@@ -339,12 +636,18 @@ export default function AdminProductsPage() {
     }
   };
 
-  const handleDelete = async (productId: string) => {
+  const handleDelete = async (product: UiProduct) => {
+    if (saving) return;
+    setBusyLabel('Suppression…');
+    setSaving(true);
     try {
-      await deleteProduct(productId);
+      await deleteProduct(product.id);
+      notifySuccess(`Produit « ${product.name} » supprimé.`);
       await refetch();
     } catch (err) {
       notifyError(err, 'Erreur suppression produit');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -380,6 +683,11 @@ export default function AdminProductsPage() {
 
   return (
     <div className="space-y-8">
+      <AdminBusyOverlay
+        show={saving && !isAddModalOpen && !isEditModalOpen}
+        label={busyLabel}
+        placement="fixed"
+      />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline italic font-bold">Gestion des Produits</h1>
@@ -389,6 +697,7 @@ export default function AdminProductsPage() {
         <Dialog
           open={isAddModalOpen}
           onOpenChange={(open) => {
+            if (saving && !open) return;
             setIsAddModalOpen(open);
             if (!open) document.body.style.pointerEvents = '';
           }}
@@ -398,173 +707,69 @@ export default function AdminProductsPage() {
               <Plus className="w-4 h-4 mr-2" /> Ajouter un produit
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-none border-zay-border shadow-2xl max-w-4xl p-0 overflow-hidden">
-            <DialogHeader className="p-8 pb-0">
-              <DialogTitle className="text-3xl font-headline italic font-bold">Nouveau Produit</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleAddProduct} className="p-8 pt-6 space-y-8 max-h-[85vh] overflow-y-auto">
-              <div className="grid md:grid-cols-2 gap-10">
-                <div className="space-y-4">
-                  <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Image de l'article</Label>
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className={cn(
-                      "relative aspect-[3/4] border-2 border-dashed border-zay-border bg-zay-main flex flex-col items-center justify-center cursor-pointer hover:bg-zay-rose-pale transition-all group overflow-hidden",
-                      newProduct.image && "border-solid border-zay-rose"
-                    )}
-                  >
-                    {newProduct.image ? (
-                      <>
-                        <MediaImage src={newProduct.image} alt="Preview" fill className="object-cover" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <p className="text-white text-[0.6rem] font-bold uppercase tracking-widest">Changer la photo</p>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-center p-6 space-y-3">
-                        <Upload className="w-8 h-8 mx-auto text-zay-text-muted" />
-                        <p className="text-[0.65rem] font-bold uppercase tracking-wider">Télécharger</p>
-                      </div>
-                    )}
-                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'add')} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Galerie (optionnel)</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => galleryAddRef.current?.click()}
-                      className="w-full rounded-none border-zay-border h-10 text-[0.6rem] font-bold uppercase tracking-widest"
-                    >
-                      Ajouter des photos
-                    </Button>
-                    <input
-                      type="file"
-                      ref={galleryAddRef}
-                      className="hidden"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleGalleryChange(e, 'add')}
-                    />
-                    {newProduct.galleryPreviews.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2">
-                        {newProduct.galleryPreviews.map((src, i) => (
-                          <div key={`${src}-${i}`} className="relative aspect-[3/4] bg-zay-gray overflow-hidden">
-                            <MediaImage src={src} alt="" fill className="object-cover" />
-                            <button
-                              type="button"
-                              className="absolute top-1 right-1 bg-white/90 p-1 text-[0.5rem] font-bold"
-                              onClick={() =>
-                                setNewProduct((prev) => ({
-                                  ...prev,
-                                  galleryFiles: prev.galleryFiles.filter((_, idx) => idx !== i),
-                                  galleryPreviews: prev.galleryPreviews.filter((_, idx) => idx !== i),
-                                }))
-                              }
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nom de l'article</Label>
-                    <Input required value={newProduct.name} onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} className="rounded-none h-12 font-bold" />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Catégorie</Label>
-                      <select 
-                        required
-                        className="w-full h-12 border border-zay-border rounded-none text-xs font-bold uppercase tracking-widest px-4" 
-                        value={newProduct.categoryId} 
-                        onChange={(e) => setNewProduct({...newProduct, categoryId: e.target.value, subcategoryId: ''})}
-                      >
-                        <option value="">Sélectionner</option>
-                        {categories?.map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Sous-catégorie</Label>
-                      <select 
-                        className="w-full h-12 border border-zay-border rounded-none text-xs font-bold uppercase tracking-widest px-4 disabled:opacity-50" 
-                        value={newProduct.subcategoryId} 
-                        onChange={(e) => setNewProduct({...newProduct, subcategoryId: e.target.value})}
-                        disabled={!newProduct.categoryId}
-                      >
-                        <option value="">Aucune</option>
-                        {subcategories?.map(sub => (
-                          <option key={sub.id} value={sub.id}>{sub.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Prix (€)</Label>
-                      <Input required type="number" step="0.01" min="0" value={newProduct.price} onChange={(e) => setNewProduct({...newProduct, price: e.target.value})} className="rounded-none h-12 font-bold" />
-                      <p className="text-[0.6rem] text-zay-text-muted italic">Prix de vente (ou prix promo)</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Prix d&apos;origine (€)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={newProduct.originalPrice}
-                        onChange={(e) => setNewProduct({...newProduct, originalPrice: e.target.value})}
-                        placeholder="Ex: 229"
-                        className="rounded-none h-12 font-bold"
-                      />
-                      <p className="text-[0.6rem] text-zay-text-muted italic">Optionnel — plus élevé que le prix pour activer la promo</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Stock Initial</Label>
-                    <Input
-                      required={newProduct.variants.length === 0}
-                      type="number"
-                      value={newProduct.stock}
-                      onChange={(e) => setNewProduct({...newProduct, stock: e.target.value})}
-                      disabled={newProduct.variants.length > 0}
-                      className="rounded-none h-12 font-bold disabled:opacity-50"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Badge (ex: NEW, PROMO)</Label>
-                    <Input value={newProduct.badge} onChange={(e) => setNewProduct({...newProduct, badge: e.target.value})} className="rounded-none h-12 font-bold" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Description</Label>
-                    <Textarea value={newProduct.description} onChange={(e) => setNewProduct({...newProduct, description: e.target.value})} className="rounded-none min-h-[120px] font-bold" />
-                  </div>
-
-                  <VariantsFields
+          <DialogContent
+            className={cn(
+              'rounded-none border-zay-border shadow-2xl max-w-[640px] p-0 gap-0 overflow-hidden',
+              saving && '[&>button]:pointer-events-none [&>button]:opacity-0',
+            )}
+            onPointerDownOutside={(e) => {
+              if (saving) e.preventDefault();
+            }}
+            onEscapeKeyDown={(e) => {
+              if (saving) e.preventDefault();
+            }}
+          >
+            <AdminBusyOverlay show={saving} label={busyLabel} />
+            <div className="flex max-h-[88vh] flex-col">
+              <DialogHeader className="shrink-0 border-b border-zay-border px-5 py-4">
+                <DialogTitle className="text-xl font-headline italic">Nouveau produit</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleAddProduct} className="flex min-h-0 flex-1 flex-col">
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                  <ProductFormFields
+                    name={newProduct.name}
+                    categoryId={newProduct.categoryId}
+                    subcategoryId={newProduct.subcategoryId}
+                    price={newProduct.price}
+                    originalPrice={newProduct.originalPrice}
+                    stock={newProduct.stock}
+                    coverPreview={newProduct.image}
+                    gallery={newProduct.galleryPreviews.map((src, i) => ({
+                      key: String(i),
+                      src,
+                    }))}
+                    description={newProduct.description}
+                    badge={newProduct.badge}
                     variants={newProduct.variants}
-                    onChange={(variants) => setNewProduct({ ...newProduct, variants })}
+                    categories={categories}
+                    coverRef={fileInputRef}
+                    galleryRef={galleryAddRef}
+                    onCoverFile={(e) => handleFileChange(e, 'add')}
+                    onGalleryFile={(e) => handleGalleryChange(e, 'add')}
+                    onRemoveGallery={(key) => {
+                      const i = Number(key);
+                      setNewProduct((prev) => ({
+                        ...prev,
+                        galleryFiles: prev.galleryFiles.filter((_, idx) => idx !== i),
+                        galleryPreviews: prev.galleryPreviews.filter((_, idx) => idx !== i),
+                      }));
+                    }}
+                    onChange={(patch) =>
+                      setNewProduct((prev) => ({ ...prev, ...patch }))
+                    }
                   />
                 </div>
-              </div>
-
-              <DialogFooter className="mt-8 border-t border-zay-border pt-6">
-                <Button type="submit" disabled={saving} className="bg-primary hover:bg-zay-text text-white rounded-none w-full h-14 text-[0.65rem] font-bold uppercase tracking-[0.2em]">
-                  Enregistrer l'article
-                </Button>
-              </DialogFooter>
-            </form>
+                <DialogFooter className="shrink-0 border-t border-zay-border px-5 py-3">
+                  <Button
+                    type="submit"
+                    disabled={saving}
+                    className="bg-primary hover:bg-zay-text text-white rounded-none w-full h-11 text-[0.65rem] font-bold uppercase tracking-[0.2em]"
+                  >
+                    Enregistrer
+                  </Button>
+                </DialogFooter>
+              </form>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
@@ -650,7 +855,7 @@ export default function AdminProductsPage() {
                         <DropdownMenuItem
                           className="text-[0.6rem] font-bold uppercase py-2 text-red-500 cursor-pointer"
                           onSelect={() => {
-                            setTimeout(() => handleDelete(product.id), 50);
+                            setTimeout(() => void handleDelete(product), 50);
                           }}
                         >
                           <Trash2 size={12} className="mr-2" /> Supprimer
@@ -666,194 +871,96 @@ export default function AdminProductsPage() {
       </div>
 
       <Dialog open={isEditModalOpen} onOpenChange={(open) => {
+        if (saving && !open) return;
         setIsEditModalOpen(open);
         if (!open) {
           document.body.style.pointerEvents = '';
           setTimeout(() => setEditingProduct(null), 300);
         }
       }}>
-        <DialogContent className="rounded-none border-zay-border shadow-2xl max-w-4xl p-0 overflow-hidden">
-          <DialogHeader className="p-8 pb-0">
-            <DialogTitle className="text-3xl font-headline italic font-bold">Modifier l'article</DialogTitle>
-          </DialogHeader>
-          {editingProduct && (
-            <form onSubmit={handleUpdateProduct} className="p-8 pt-6 space-y-8 max-h-[85vh] overflow-y-auto">
-              <div className="grid md:grid-cols-2 gap-10">
-                <div className="space-y-4">
-                  <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Image de l'article</Label>
-                  <div 
-                    onClick={() => editFileInputRef.current?.click()}
-                    className="relative aspect-[3/4] border-2 border-zay-border bg-zay-main flex flex-col items-center justify-center cursor-pointer hover:bg-zay-rose-pale transition-all group overflow-hidden"
-                  >
-                    <MediaImage src={editingProduct.image} alt="Preview" fill className="object-cover" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <p className="text-white text-[0.6rem] font-bold uppercase tracking-widest">Changer la photo</p>
-                    </div>
-                    <input type="file" ref={editFileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'edit')} />
+        <DialogContent
+            className={cn(
+              'rounded-none border-zay-border shadow-2xl max-w-[640px] p-0 gap-0 overflow-hidden',
+              saving && '[&>button]:pointer-events-none [&>button]:opacity-0',
+            )}
+            onPointerDownOutside={(e) => {
+              if (saving) e.preventDefault();
+            }}
+            onEscapeKeyDown={(e) => {
+              if (saving) e.preventDefault();
+            }}
+          >
+            <AdminBusyOverlay show={saving} label={busyLabel} />
+            {editingProduct ? (
+              <div className="flex max-h-[88vh] flex-col">
+                <DialogHeader className="shrink-0 border-b border-zay-border px-5 py-4">
+                  <DialogTitle className="text-xl font-headline italic">Modifier l&apos;article</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleUpdateProduct} className="flex min-h-0 flex-1 flex-col">
+                  <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                    <ProductFormFields
+                      name={editingProduct.name}
+                      categoryId={editingProduct.categoryId}
+                      subcategoryId={editingProduct.subcategoryId}
+                      price={editingProduct.price}
+                      originalPrice={editingProduct.originalPrice}
+                      stock={editingProduct.stock}
+                      coverPreview={editingProduct.image}
+                      gallery={[
+                        ...editingProduct.galleryUrls.map((src) => ({
+                          key: `url:${src}`,
+                          src,
+                        })),
+                        ...editingProduct.galleryFiles.map((file, i) => ({
+                          key: `file:${i}`,
+                          src: URL.createObjectURL(file),
+                        })),
+                      ]}
+                      description={editingProduct.description}
+                      badge={editingProduct.badge}
+                      variants={editingProduct.variants}
+                      categories={categories}
+                      coverRef={editFileInputRef}
+                      galleryRef={galleryEditRef}
+                      onCoverFile={(e) => handleFileChange(e, 'edit')}
+                      onGalleryFile={(e) => handleGalleryChange(e, 'edit')}
+                      onRemoveGallery={(key) => {
+                        setEditingProduct((prev) => {
+                          if (!prev) return prev;
+                          if (key.startsWith('url:')) {
+                            const src = key.slice(4);
+                            return {
+                              ...prev,
+                              galleryUrls: prev.galleryUrls.filter((u) => u !== src),
+                            };
+                          }
+                          const i = Number(key.slice(5));
+                          return {
+                            ...prev,
+                            galleryFiles: prev.galleryFiles.filter((_, idx) => idx !== i),
+                          };
+                        });
+                      }}
+                      onChange={(patch) =>
+                        setEditingProduct((prev) =>
+                          prev ? { ...prev, ...patch } : prev,
+                        )
+                      }
+                    />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Galerie</Label>
+                  <DialogFooter className="shrink-0 border-t border-zay-border px-5 py-3">
                     <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => galleryEditRef.current?.click()}
-                      className="w-full rounded-none border-zay-border h-10 text-[0.6rem] font-bold uppercase tracking-widest"
+                      type="submit"
+                      disabled={saving}
+                      className="bg-primary hover:bg-zay-text text-white rounded-none w-full h-11 text-[0.65rem] font-bold uppercase tracking-[0.2em]"
                     >
-                      Ajouter des photos
+                      Mettre à jour
                     </Button>
-                    <input
-                      type="file"
-                      ref={galleryEditRef}
-                      className="hidden"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleGalleryChange(e, 'edit')}
-                    />
-                    {(editingProduct.galleryUrls.length > 0 || editingProduct.galleryFiles.length > 0) && (
-                      <div className="grid grid-cols-3 gap-2">
-                        {editingProduct.galleryUrls.map((src) => (
-                          <div key={src} className="relative aspect-[3/4] bg-zay-gray overflow-hidden">
-                            <MediaImage src={src} alt="" fill className="object-cover" />
-                            <button
-                              type="button"
-                              className="absolute top-1 right-1 bg-white/90 p-1 text-[0.5rem] font-bold"
-                              onClick={() =>
-                                setEditingProduct((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        galleryUrls: prev.galleryUrls.filter((u) => u !== src),
-                                      }
-                                    : prev,
-                                )
-                              }
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                        {editingProduct.galleryFiles.map((file, i) => (
-                          <div key={`${file.name}-${i}`} className="relative aspect-[3/4] bg-zay-gray overflow-hidden">
-                            <MediaImage src={URL.createObjectURL(file)} alt="" fill className="object-cover" />
-                            <button
-                              type="button"
-                              className="absolute top-1 right-1 bg-white/90 p-1 text-[0.5rem] font-bold"
-                              onClick={() =>
-                                setEditingProduct((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        galleryFiles: prev.galleryFiles.filter((_, idx) => idx !== i),
-                                      }
-                                    : prev,
-                                )
-                              }
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nom de l'article</Label>
-                    <Input required value={editingProduct.name} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="rounded-none h-12 font-bold" />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Catégorie</Label>
-                      <select 
-                        required
-                        className="w-full h-12 border border-zay-border rounded-none text-xs font-bold uppercase tracking-widest px-4" 
-                        value={editingProduct.categoryId} 
-                        onChange={(e) => setEditingProduct({...editingProduct, categoryId: e.target.value, subcategoryId: ''})}
-                      >
-                        <option value="">Sélectionner</option>
-                        {categories?.map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Sous-catégorie</Label>
-                      <select 
-                        className="w-full h-12 border border-zay-border rounded-none text-xs font-bold uppercase tracking-widest px-4 disabled:opacity-50" 
-                        value={editingProduct.subcategoryId} 
-                        onChange={(e) => setEditingProduct({...editingProduct, subcategoryId: e.target.value})}
-                        disabled={!editingProduct.categoryId}
-                      >
-                        <option value="">Aucune</option>
-                        {editSubcategories?.map(sub => (
-                          <option key={sub.id} value={sub.id}>{sub.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Prix (€)</Label>
-                      <Input required type="number" step="0.01" min="0" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})} className="rounded-none h-12 font-bold" />
-                      <p className="text-[0.6rem] text-zay-text-muted italic">Prix de vente (ou prix promo)</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Prix d&apos;origine (€)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={editingProduct.originalPrice}
-                        onChange={(e) => setEditingProduct({...editingProduct, originalPrice: e.target.value})}
-                        placeholder="Ex: 229"
-                        className="rounded-none h-12 font-bold"
-                      />
-                      <p className="text-[0.6rem] text-zay-text-muted italic">Optionnel — plus élevé que le prix pour activer la promo</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Stock</Label>
-                    <Input
-                      required={editingProduct.variants.length === 0}
-                      type="number"
-                      value={editingProduct.stock}
-                      onChange={(e) => setEditingProduct({...editingProduct, stock: e.target.value})}
-                      disabled={editingProduct.variants.length > 0}
-                      className="rounded-none h-12 font-bold disabled:opacity-50"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Badge</Label>
-                    <Input value={editingProduct.badge} onChange={(e) => setEditingProduct({...editingProduct, badge: e.target.value})} className="rounded-none h-12 font-bold" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Description</Label>
-                    <Textarea value={editingProduct.description} onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})} className="rounded-none min-h-[120px] font-bold" />
-                  </div>
-
-                  <VariantsFields
-                    variants={editingProduct.variants}
-                    onChange={(variants) => setEditingProduct({ ...editingProduct, variants })}
-                  />
-                </div>
+                  </DialogFooter>
+                </form>
               </div>
-
-              <DialogFooter className="mt-8 border-t border-zay-border pt-6">
-                <Button type="submit" disabled={saving} className="bg-primary hover:bg-zay-text text-white rounded-none w-full h-14 text-[0.65rem] font-bold uppercase tracking-[0.2em]">
-                  Mettre à jour l'article
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
+            ) : null}
+          </DialogContent>
       </Dialog>
     </div>
   );
