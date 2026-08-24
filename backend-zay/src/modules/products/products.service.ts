@@ -108,7 +108,7 @@ export class ProductsService {
     }
 
     const gallerySaved = await Promise.all(
-      galleryFiles.map((f) => this.uploads.saveImage(f, 'products')),
+      galleryFiles.map((f) => this.uploads.saveImage(f, 'products/images')),
     );
     const images = [
       ...(dto.images ?? []).map((u) => u.trim()).filter(Boolean),
@@ -210,7 +210,7 @@ export class ProductsService {
     }
 
     const gallerySaved = await Promise.all(
-      galleryFiles.map((f) => this.uploads.saveImage(f, 'products')),
+      galleryFiles.map((f) => this.uploads.saveImage(f, 'products/images')),
     );
     const nextImages =
       dto.images !== undefined

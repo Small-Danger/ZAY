@@ -24,10 +24,10 @@ export const API_ORIGIN =
   'http://localhost:4000';
 
 /**
- * Résout une image BDD :
- * - `/uploads/...` → URL absolue Nest
+ * Résout une image BDD (comme Afrikraga : le CDN s’affiche tel quel) :
+ * - `https://res.cloudinary.com/...` → inchangée
+ * - `/api/media/...` ou `/uploads/...` → origine Nest (repli)
  * - `/robes.png` → asset public Next
- * - URL http(s) → telle quelle
  */
 export function resolveMediaUrl(
   path: string | null | undefined,
