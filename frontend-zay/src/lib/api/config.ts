@@ -35,6 +35,8 @@ export function resolveMediaUrl(
 ): string {
   if (!path) return fallback;
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  if (path.startsWith('/uploads/')) return `${API_ORIGIN}${path}`;
+  if (path.startsWith('/uploads/') || path.startsWith('/api/media/')) {
+    return `${API_ORIGIN}${path}`;
+  }
   return path;
 }

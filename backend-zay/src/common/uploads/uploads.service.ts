@@ -7,6 +7,7 @@ import '../../cloudinary-env';
 import { v2 as cloudinary } from 'cloudinary';
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { extname, join } from 'path';
+import { PrismaService } from '../../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 
 const ALLOWED_MIME = new Set([
@@ -30,7 +31,7 @@ export class UploadsService {
   readonly rootDir = join(process.cwd(), 'uploads');
   private readonly credentials: CloudinaryCredentials | null;
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     this.ensureDir(this.rootDir);
     this.ensureDir(join(this.rootDir, 'categories'));
     this.ensureDir(join(this.rootDir, 'subcategories'));
@@ -42,7 +43,7 @@ export class UploadsService {
         `Uploads → Cloudinary (${this.credentials.cloudName}, key ${this.credentials.apiKey.length}c, secret ${this.credentials.apiSecret.length}c)`,
       );
     } else {
-      this.logger.log('Uploads → disque local /uploads');
+      this.logger.log('Uploads → Postgres (Cloudinary absent)');
     }
   }
 
@@ -51,9 +52,7 @@ export class UploadsService {
   }
 
   /**
-   * Enregistre une image et retourne l’URL publique :
-   * Cloudinary (`https://res.cloudinary.com/...`) si les identifiants sont valides,
-   * sinon `/uploads/...` servi par Nest.
+   * Cloudinary si la signature passe, sinon Postgres (survit aux redeploys).
    */
   async saveImage(
     file: Express.Multer.File,
@@ -66,18 +65,13 @@ export class UploadsService {
         return await this.uploadToCloudinary(file, folder);
       } catch (err) {
         const message = this.cloudinaryErrorMessage(err);
-        this.logger.error(`Cloudinary refusé (${this.credentials.cloudName}): ${message}`);
-        if (process.env.NODE_ENV !== 'production') {
-          this.logger.warn('Repli disque autorisé en local uniquement');
-          return this.saveToDisk(file, folder);
-        }
-        throw new BadRequestException(
-          `Upload Cloudinary échoué: ${message}. La photo n’a pas été enregistrée (elle disparaîtrait au prochain déploiement).`,
+        this.logger.error(
+          `Cloudinary refusé (${this.credentials.cloudName}): ${message} — repli Postgres`,
         );
       }
     }
 
-    return this.saveToDisk(file, folder);
+    return this.saveToDatabase(file);
   }
 
   async deleteIfOwned(publicPath: string | null | undefined) {
@@ -92,6 +86,14 @@ export class UploadsService {
         this.logger.warn(
           `Cloudinary destroy ignoré: ${this.cloudinaryErrorMessage(err)}`,
         );
+      }
+      return;
+    }
+
+    if (publicPath.includes('/api/media/')) {
+      const id = publicPath.split('/api/media/')[1]?.split(/[/?#]/)[0];
+      if (id) {
+        await this.prisma.mediaFile.delete({ where: { id } }).catch(() => undefined);
       }
       return;
     }
@@ -124,9 +126,6 @@ export class UploadsService {
       {
         folder: `zay/${folder}`,
         resource_type: 'image',
-        cloud_name: this.credentials.cloudName,
-        api_key: this.credentials.apiKey,
-        api_secret: this.credentials.apiSecret,
       },
     );
 
@@ -134,6 +133,16 @@ export class UploadsService {
       throw new Error('Cloudinary n’a pas renvoyé d’URL');
     }
     return result.secure_url;
+  }
+
+  private async saveToDatabase(file: Express.Multer.File): Promise<string> {
+    const created = await this.prisma.mediaFile.create({
+      data: {
+        mimeType: file.mimetype,
+        data: new Uint8Array(file.buffer),
+      },
+    });
+    return `/api/media/${created.id}`;
   }
 
   private saveToDisk(
