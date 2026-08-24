@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { Allow, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** Mise à jour — image via fichier multipart optionnel (`image`). */
 export class UpdateCategoryDto {
@@ -6,4 +6,8 @@ export class UpdateCategoryDto {
   @IsString()
   @MaxLength(80)
   name?: string;
+
+  @Allow()
+  @IsOptional()
+  image?: unknown;
 }

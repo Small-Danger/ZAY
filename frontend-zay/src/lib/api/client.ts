@@ -45,9 +45,7 @@ export async function apiFetchForm<T>(
 function formatApiError(status: number, text: string): string {
   const raw = text.trim();
   if (!raw) {
-    return status === 400
-      ? 'La commande n’a pas pu être validée. Vérifiez le stock et réessayez.'
-      : `Erreur ${status}`;
+    return `Erreur ${status}`;
   }
   try {
     const body = JSON.parse(raw) as { message?: string | string[] };
@@ -62,9 +60,6 @@ function formatApiError(status: number, text: string): string {
     }
   } catch {
     /* corps non JSON */
-  }
-  if (status === 400) {
-    return 'La commande n’a pas pu être validée. Vérifiez le stock et réessayez.';
   }
   return `Erreur ${status}`;
 }

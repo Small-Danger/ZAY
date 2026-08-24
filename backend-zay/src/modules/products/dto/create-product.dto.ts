@@ -106,6 +106,7 @@ export class CreateProductDto {
 
   /** URL / path — optionnel si un fichier `image` est uploadé en multipart */
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value : undefined))
   @IsString()
   @IsNotEmpty()
   image?: string;

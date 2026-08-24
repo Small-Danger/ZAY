@@ -66,6 +66,7 @@ export class UpdateProductDto {
   stock?: number;
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value : undefined))
   @IsString()
   image?: string;
 

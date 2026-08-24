@@ -51,8 +51,8 @@ const PREFETCH_ROUTES = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<SessionUser | null>(() => getSessionUser());
-  const [ready, setReady] = useState(() => isAdminSession());
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [ready, setReady] = useState(false);
   const [newMessages, setNewMessages] = useState(0);
   const [navPending, setNavPending] = useState(false);
 
