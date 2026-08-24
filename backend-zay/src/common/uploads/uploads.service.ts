@@ -18,21 +18,28 @@ const ALLOWED_MIME = new Set([
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 Mo
 
+type CloudinaryCredentials = {
+  cloudName: string;
+  apiKey: string;
+  apiSecret: string;
+};
+
 @Injectable()
 export class UploadsService {
   private readonly logger = new Logger(UploadsService.name);
   readonly rootDir = join(process.cwd(), 'uploads');
+  private readonly credentials: CloudinaryCredentials | null;
 
   constructor() {
     this.ensureDir(this.rootDir);
     this.ensureDir(join(this.rootDir, 'categories'));
     this.ensureDir(join(this.rootDir, 'subcategories'));
     this.ensureDir(join(this.rootDir, 'products'));
-    if (this.useCloudinary) {
-      cloudinary.config(true);
-      const cfg = cloudinary.config();
+    this.credentials = this.resolveCredentials();
+    if (this.credentials) {
+      this.applyCloudinaryConfig(this.credentials);
       this.logger.log(
-        `Uploads → Cloudinary (${cfg.cloud_name}, key ${String(cfg.api_key || '').length}c, secret ${String(cfg.api_secret || '').length}c)`,
+        `Uploads → Cloudinary (${this.credentials.cloudName}, key ${this.credentials.apiKey.length}c, secret ${this.credentials.apiSecret.length}c)`,
       );
     } else {
       this.logger.log('Uploads → disque local /uploads');
@@ -40,16 +47,12 @@ export class UploadsService {
   }
 
   get driver(): 'cloudinary' | 'disk' {
-    return this.useCloudinary ? 'cloudinary' : 'disk';
-  }
-
-  private get useCloudinary() {
-    return (process.env.CLOUDINARY_URL ?? '').startsWith('cloudinary://');
+    return this.credentials ? 'cloudinary' : 'disk';
   }
 
   /**
    * Enregistre une image et retourne l’URL publique :
-   * Cloudinary (`https://res.cloudinary.com/...`) si CLOUDINARY_URL est défini,
+   * Cloudinary (`https://res.cloudinary.com/...`) si les identifiants sont valides,
    * sinon `/uploads/...` servi par Nest.
    */
   async saveImage(
@@ -58,18 +61,19 @@ export class UploadsService {
   ): Promise<string> {
     this.assertImage(file);
 
-    if (this.useCloudinary) {
-      return this.uploadToCloudinary(file, folder);
+    if (this.credentials) {
+      try {
+        return await this.uploadToCloudinary(file, folder);
+      } catch (err) {
+        const message = this.cloudinaryErrorMessage(err);
+        this.logger.error(
+          `Cloudinary refusé (${this.credentials.cloudName}): ${message} — repli disque /uploads`,
+        );
+        return this.saveToDisk(file, folder);
+      }
     }
 
-    const ext = this.extensionFor(file);
-    const filename = `${randomUUID()}${ext}`;
-    const dir = join(this.rootDir, folder);
-    this.ensureDir(dir);
-
-    writeFileSync(join(dir, filename), file.buffer);
-
-    return `/uploads/${folder}/${filename}`;
+    return this.saveToDisk(file, folder);
   }
 
   async deleteIfOwned(publicPath: string | null | undefined) {
@@ -106,44 +110,103 @@ export class UploadsService {
     file: Express.Multer.File,
     folder: string,
   ): Promise<string> {
-    cloudinary.config(true);
-    const cfg = cloudinary.config();
-    if (!cfg.cloud_name || !cfg.api_key || !cfg.api_secret) {
-      throw new BadRequestException(
-        'CLOUDINARY_URL invalide. Valeur attendue : cloudinary://clé:secret@cloud',
-      );
+    if (!this.credentials) {
+      throw new Error('Cloudinary non configuré');
     }
+    this.applyCloudinaryConfig(this.credentials);
 
-    try {
-      const result = await new Promise<{ secure_url?: string }>(
-        (resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            {
-              folder: `zay/${folder}`,
-              resource_type: 'image',
-            },
-            (error, uploaded) => {
-              if (error) {
-                reject(error);
-                return;
-              }
-              resolve(uploaded ?? {});
-            },
-          );
-          stream.on('error', reject);
-          stream.end(file.buffer);
-        },
-      );
+    const result = await cloudinary.uploader.upload(
+      `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+      {
+        folder: `zay/${folder}`,
+        resource_type: 'image',
+        signature_version: 1,
+      },
+    );
 
-      if (!result.secure_url) {
-        throw new Error('Cloudinary n’a pas renvoyé d’URL');
+    if (!result.secure_url) {
+      throw new Error('Cloudinary n’a pas renvoyé d’URL');
+    }
+    return result.secure_url;
+  }
+
+  private saveToDisk(
+    file: Express.Multer.File,
+    folder: 'categories' | 'subcategories' | 'products',
+  ): string {
+    const ext = this.extensionFor(file);
+    const filename = `${randomUUID()}${ext}`;
+    const dir = join(this.rootDir, folder);
+    this.ensureDir(dir);
+    writeFileSync(join(dir, filename), file.buffer);
+    return `/uploads/${folder}/${filename}`;
+  }
+
+  private applyCloudinaryConfig(creds: CloudinaryCredentials) {
+    cloudinary.config({
+      cloud_name: creds.cloudName,
+      api_key: creds.apiKey,
+      api_secret: creds.apiSecret,
+      secure: true,
+      signature_algorithm: 'sha1',
+      signature_version: 1,
+    });
+  }
+
+  private resolveCredentials(): CloudinaryCredentials | null {
+    const fromParts = this.clean(process.env.CLOUDINARY_CLOUD_NAME);
+    const apiKey = this.clean(process.env.CLOUDINARY_API_KEY);
+    const apiSecret = this.clean(process.env.CLOUDINARY_API_SECRET);
+    if (fromParts && apiKey && apiSecret) {
+      return { cloudName: fromParts, apiKey, apiSecret };
+    }
+    return this.parseCloudinaryUrl(process.env.CLOUDINARY_URL);
+  }
+
+  private parseCloudinaryUrl(
+    raw: string | undefined,
+  ): CloudinaryCredentials | null {
+    let url = this.clean(raw);
+    if (/^CLOUDINARY_URL=/i.test(url)) {
+      url = this.clean(url.replace(/^CLOUDINARY_URL=/i, ''));
+    }
+    if (!url.startsWith('cloudinary://')) return null;
+
+    const body = url.slice('cloudinary://'.length).replace(/\/+$/, '');
+    const at = body.lastIndexOf('@');
+    if (at < 0) return null;
+    const creds = body.slice(0, at);
+    const cloudName = body.slice(at + 1).split(/[/?#]/)[0];
+    const colon = creds.indexOf(':');
+    if (colon < 0 || !cloudName) return null;
+
+    let apiKey = creds.slice(0, colon);
+    let apiSecret = creds.slice(colon + 1);
+    if (apiKey.includes('%')) {
+      try {
+        apiKey = decodeURIComponent(apiKey);
+      } catch {
+        /* garder brut */
       }
-      return result.secure_url;
-    } catch (err) {
-      const message = this.cloudinaryErrorMessage(err);
-      this.logger.error(`Cloudinary (${cfg.cloud_name}): ${message}`);
-      throw new BadRequestException(`Upload Cloudinary échoué: ${message}`);
     }
+    if (apiSecret.includes('%')) {
+      try {
+        apiSecret = decodeURIComponent(apiSecret);
+      } catch {
+        /* garder brut */
+      }
+    }
+    if (!apiKey || !apiSecret) return null;
+    return { cloudName, apiKey, apiSecret };
+  }
+
+  private clean(value: string | undefined): string {
+    return (value ?? '')
+      .replace(/^\uFEFF/, '')
+      .replace(/[\r\n]/g, '')
+      .trim()
+      .replace(/^["']+|["']+$/g, '')
+      .trim();
   }
 
   private cloudinaryErrorMessage(err: unknown, depth = 0): string {

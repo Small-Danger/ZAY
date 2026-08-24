@@ -31,9 +31,14 @@ export class HealthService {
       service: 'backend-zay',
       database,
       redis,
-      uploads: (process.env.CLOUDINARY_URL ?? '').startsWith('cloudinary://')
-        ? 'cloudinary'
-        : 'disk',
+      uploads:
+        process.env.CLOUDINARY_CLOUD_NAME &&
+        process.env.CLOUDINARY_API_KEY &&
+        process.env.CLOUDINARY_API_SECRET
+          ? 'cloudinary'
+          : (process.env.CLOUDINARY_URL ?? '').startsWith('cloudinary://')
+            ? 'cloudinary'
+            : 'disk',
       timestamp: new Date().toISOString(),
     };
   }

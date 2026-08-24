@@ -60,6 +60,18 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CLOUDINARY_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_CLOUD_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_API_SECRET?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
