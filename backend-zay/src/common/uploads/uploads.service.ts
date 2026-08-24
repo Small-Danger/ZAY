@@ -18,12 +18,6 @@ const ALLOWED_MIME = new Set([
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 Mo
 
-type CloudinaryCredentials = {
-  cloudName: string;
-  apiKey: string;
-  apiSecret: string;
-};
-
 @Injectable()
 export class UploadsService {
   private readonly logger = new Logger(UploadsService.name);
@@ -35,29 +29,18 @@ export class UploadsService {
     this.ensureDir(join(this.rootDir, 'subcategories'));
     this.ensureDir(join(this.rootDir, 'products'));
     if (this.useCloudinary) {
-      const parsed = this.parseCloudinaryUrl(process.env.CLOUDINARY_URL!);
-      if (parsed) {
-        cloudinary.config({
-          cloud_name: parsed.cloudName,
-          api_key: parsed.apiKey,
-          api_secret: parsed.apiSecret,
-          secure: true,
-        });
-        this.logger.log(`Uploads → Cloudinary (${parsed.cloudName})`);
-      } else {
-        this.logger.warn(
-          'CLOUDINARY_URL présent mais illisible — uploads disque /uploads',
-        );
-      }
+      cloudinary.config(true);
+      const cfg = cloudinary.config();
+      this.logger.log(
+        `Uploads → Cloudinary (${cfg.cloud_name}, key ${String(cfg.api_key || '').length}c, secret ${String(cfg.api_secret || '').length}c)`,
+      );
     } else {
       this.logger.log('Uploads → disque local /uploads');
     }
   }
 
   get driver(): 'cloudinary' | 'disk' {
-    return this.useCloudinary && this.parseCloudinaryUrl(process.env.CLOUDINARY_URL ?? '')
-      ? 'cloudinary'
-      : 'disk';
+    return this.useCloudinary ? 'cloudinary' : 'disk';
   }
 
   private get useCloudinary() {
@@ -75,7 +58,7 @@ export class UploadsService {
   ): Promise<string> {
     this.assertImage(file);
 
-    if (this.driver === 'cloudinary') {
+    if (this.useCloudinary) {
       return this.uploadToCloudinary(file, folder);
     }
 
@@ -123,84 +106,43 @@ export class UploadsService {
     file: Express.Multer.File,
     folder: string,
   ): Promise<string> {
-    const creds = this.requireCloudinaryCredentials();
-    const targetFolder = `zay/${folder}`;
-    const timestamp = Math.round(Date.now() / 1000);
-    const signature = cloudinary.utils.api_sign_request(
-      { folder: targetFolder, timestamp },
-      creds.apiSecret,
-    );
-
-    const form = new FormData();
-    const filename = file.originalname || `image${this.extensionFor(file)}`;
-    form.append(
-      'file',
-      new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }),
-      filename,
-    );
-    form.append('api_key', creds.apiKey);
-    form.append('timestamp', String(timestamp));
-    form.append('signature', signature);
-    form.append('folder', targetFolder);
-
-    let payload: { secure_url?: string; error?: { message?: string } };
-    try {
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${encodeURIComponent(creds.cloudName)}/image/upload`,
-        { method: 'POST', body: form },
-      );
-      payload = (await res.json()) as typeof payload;
-    } catch (err) {
-      const message = this.cloudinaryErrorMessage(err);
-      this.logger.error(`Cloudinary réseau (${creds.cloudName}): ${message}`);
-      throw new BadRequestException(`Upload Cloudinary échoué: ${message}`);
-    }
-
-    if (!payload.secure_url) {
-      const message =
-        payload.error?.message || 'Cloudinary n’a pas renvoyé d’URL';
-      this.logger.error(`Cloudinary API (${creds.cloudName}): ${message}`);
-      throw new BadRequestException(`Upload Cloudinary échoué: ${message}`);
-    }
-
-    return payload.secure_url;
-  }
-
-  private requireCloudinaryCredentials(): CloudinaryCredentials {
-    const parsed = this.parseCloudinaryUrl(process.env.CLOUDINARY_URL ?? '');
-    if (!parsed) {
+    cloudinary.config(true);
+    const cfg = cloudinary.config();
+    if (!cfg.cloud_name || !cfg.api_key || !cfg.api_secret) {
       throw new BadRequestException(
         'CLOUDINARY_URL invalide. Valeur attendue : cloudinary://clé:secret@cloud',
       );
     }
-    return parsed;
-  }
-
-  private parseCloudinaryUrl(url: string): CloudinaryCredentials | null {
-    const cleaned = url.trim().replace(/^["']+|["']+$/g, '');
-    if (!cleaned.startsWith('cloudinary://')) return null;
 
     try {
-      const parsed = new URL(cleaned);
-      if (parsed.protocol !== 'cloudinary:') return null;
-      const cloudName = decodeURIComponent(parsed.hostname || '').trim();
-      const apiKey = decodeURIComponent(parsed.username || '').trim();
-      const apiSecret = decodeURIComponent(parsed.password || '').trim();
-      if (!cloudName || !apiKey || !apiSecret) return null;
-      return { cloudName, apiKey, apiSecret };
-    } catch {
-      const body = cleaned.replace(/^cloudinary:\/\//, '');
-      const at = body.lastIndexOf('@');
-      if (at < 0) return null;
-      const creds = body.slice(0, at);
-      const cloudName = body.slice(at + 1).trim();
-      const colon = creds.indexOf(':');
-      if (colon < 0 || !cloudName) return null;
-      return {
-        apiKey: creds.slice(0, colon),
-        apiSecret: creds.slice(colon + 1),
-        cloudName,
-      };
+      const result = await new Promise<{ secure_url?: string }>(
+        (resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              folder: `zay/${folder}`,
+              resource_type: 'image',
+            },
+            (error, uploaded) => {
+              if (error) {
+                reject(error);
+                return;
+              }
+              resolve(uploaded ?? {});
+            },
+          );
+          stream.on('error', reject);
+          stream.end(file.buffer);
+        },
+      );
+
+      if (!result.secure_url) {
+        throw new Error('Cloudinary n’a pas renvoyé d’URL');
+      }
+      return result.secure_url;
+    } catch (err) {
+      const message = this.cloudinaryErrorMessage(err);
+      this.logger.error(`Cloudinary (${cfg.cloud_name}): ${message}`);
+      throw new BadRequestException(`Upload Cloudinary échoué: ${message}`);
     }
   }
 
@@ -226,7 +168,9 @@ export class UploadsService {
         const nested = this.cloudinaryErrorMessage(o.cause, depth + 1);
         if (nested !== 'erreur inconnue') return nested;
       }
-      if (typeof o.message === 'string' && o.message.trim()) return o.message;
+      if (typeof o.message === 'string' && o.message.trim()) {
+        return o.message.split('.')[0] || o.message;
+      }
     }
     return 'erreur inconnue';
   }
