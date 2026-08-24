@@ -35,7 +35,7 @@ import {
 } from '@/lib/api';
 import { getSubcategoriesFor, useCategories } from '@/hooks/use-categories';
 import { cn } from '@/lib/utils';
-import { notifyError } from '@/lib/notify';
+import { notifyError, notifySuccess } from '@/lib/notify';
 import { MediaImage } from '@/components/ui/media-image';
 
 function useObjectUrl(file: File | null) {
@@ -56,10 +56,12 @@ function CatalogImagePicker({
   currentUrl,
   file,
   onFile,
+  disabled,
 }: {
   currentUrl?: string | null;
   file: File | null;
   onFile: (file: File | null) => void;
+  disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const blobUrl = useObjectUrl(file);
@@ -69,37 +71,61 @@ function CatalogImagePicker({
   return (
     <div className="space-y-2">
       <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">
-        Image {currentUrl ? '' : '(optionnel)'}
+        Image
       </Label>
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className={cn(
-          'relative w-full aspect-[4/3] border-2 border-dashed border-zay-border bg-zay-main overflow-hidden group',
-          preview && 'border-solid border-zay-rose',
-        )}
-      >
-        {preview ? (
-          <>
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          className={cn(
+            'relative w-24 h-28 shrink-0 border border-zay-border bg-zay-main overflow-hidden group',
+            preview && 'border-zay-rose',
+            disabled && 'opacity-60 cursor-wait',
+          )}
+        >
+          {preview ? (
             <MediaImage src={preview} alt="Aperçu" fill className="object-cover" />
-            <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <p className="text-white text-[0.6rem] font-bold uppercase tracking-widest">
-                Changer la photo
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-zay-text-muted px-2">
+              <Upload className="w-5 h-5" />
+              <p className="text-[0.5rem] font-bold uppercase tracking-wider text-center leading-tight">
+                Ajouter
               </p>
             </div>
-          </>
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-zay-text-muted">
-            <Upload className="w-7 h-7" />
-            <p className="text-[0.65rem] font-bold uppercase tracking-wider">Ajouter une image</p>
-          </div>
-        )}
-      </button>
+          )}
+          {preview ? (
+            <span className="absolute inset-x-0 bottom-0 bg-black/55 py-1 text-center text-[0.5rem] font-bold uppercase tracking-widest text-white">
+              Changer
+            </span>
+          ) : null}
+        </button>
+        <p className="text-[0.65rem] text-zay-text-muted leading-relaxed">
+          JPEG, PNG ou WEBP · 5 Mo max
+          {file ? (
+            <>
+              <br />
+              <span className="text-zay-text font-medium">{file.name}</span>
+            </>
+          ) : currentUrl ? (
+            <>
+              <br />
+              Photo actuelle — cliquez pour la remplacer
+            </>
+          ) : (
+            <>
+              <br />
+              Optionnel
+            </>
+          )}
+        </p>
+      </div>
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
         className="hidden"
+        disabled={disabled}
         onChange={(e) => onFile(e.target.files?.[0] ?? null)}
       />
     </div>
@@ -116,10 +142,22 @@ function CategoryThumb({
   className?: string;
 }) {
   const url = src ? resolveMediaUrl(src, '') : '';
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    setBroken(false);
+  }, [url]);
+
   return (
     <div className={cn('relative shrink-0 overflow-hidden bg-zay-gray', className)}>
-      {url ? (
-        <MediaImage src={url} alt={alt} fill className="object-cover" />
+      {url && !broken ? (
+        <MediaImage
+          src={url}
+          alt=""
+          fill
+          className="object-cover"
+          onError={() => setBroken(true)}
+        />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-zay-text-muted/50">
           <ImageIcon size={18} />
@@ -142,6 +180,7 @@ export default function AdminCategoriesPage() {
   const [editingCat, setEditingCat] = useState<ApiCategory | null>(null);
   const [editingSub, setEditingSub] = useState<ApiSubcategory | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const selectedCat = categories.find((c) => c.id === selectedCatId) ?? null;
   const subcategories = getSubcategoriesFor(categories, selectedCatId);
@@ -202,9 +241,11 @@ export default function AdminCategoriesPage() {
           name: newCatName.trim().toUpperCase(),
           imageFile: newCatImage,
         });
+        notifySuccess(`Catégorie « ${newCatName.trim().toUpperCase()} » mise à jour.`);
       } else {
         const created = await createCategory(newCatName.trim().toUpperCase(), newCatImage);
         setSelectedCatId(created.id);
+        notifySuccess(`Catégorie « ${created.name} » créée.`);
       }
       resetCatForm();
       setIsCatModalOpen(false);
@@ -227,8 +268,10 @@ export default function AdminCategoriesPage() {
           name: newSubName.trim(),
           imageFile: newSubImage,
         });
+        notifySuccess(`Sous-catégorie « ${newSubName.trim()} » mise à jour.`);
       } else {
         await createSubcategory(selectedCatId, newSubName.trim(), newSubImage);
+        notifySuccess(`Sous-catégorie « ${newSubName.trim()} » ajoutée.`);
       }
       resetSubForm();
       setIsSubModalOpen(false);
@@ -242,23 +285,31 @@ export default function AdminCategoriesPage() {
 
   const handleDeleteCategory = async (cat: ApiCategory) => {
     if (!window.confirm(`Supprimer « ${cat.name} » et ses sous-catégories ?`)) return;
+    setDeletingId(cat.id);
     try {
       await deleteCategory(cat.id);
       if (selectedCatId === cat.id) setSelectedCatId(null);
+      notifySuccess(`Catégorie « ${cat.name} » supprimée.`);
       await refetch();
     } catch (err) {
       notifyError(err, 'Erreur suppression catégorie');
+    } finally {
+      setDeletingId(null);
     }
   };
 
   const handleDeleteSubcategory = async (sub: ApiSubcategory) => {
     if (!selectedCatId) return;
     if (!window.confirm(`Supprimer « ${sub.name} » ?`)) return;
+    setDeletingId(sub.id);
     try {
       await deleteSubcategory(selectedCatId, sub.id);
+      notifySuccess(`Sous-catégorie « ${sub.name} » supprimée.`);
       await refetch();
     } catch (err) {
       notifyError(err, 'Erreur suppression sous-catégorie');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -280,6 +331,7 @@ export default function AdminCategoriesPage() {
           <Dialog
           open={isCatModalOpen}
           onOpenChange={(open) => {
+            if (saving && !open) return;
             setIsCatModalOpen(open);
             if (!open) {
               resetCatForm();
@@ -287,28 +339,46 @@ export default function AdminCategoriesPage() {
             }
           }}
         >
-          <DialogContent className="rounded-none border-zay-border">
+          <DialogContent
+            className="rounded-none border-zay-border max-w-[420px] p-5 gap-3"
+            onPointerDownOutside={(e) => {
+              if (saving) e.preventDefault();
+            }}
+            onEscapeKeyDown={(e) => {
+              if (saving) e.preventDefault();
+            }}
+          >
             <DialogHeader>
-              <DialogTitle className="text-2xl font-headline italic">
-                {editingCat ? 'Modifier la catégorie' : 'Créer une Catégorie'}
+              <DialogTitle className="text-xl font-headline italic">
+                {editingCat ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
               </DialogTitle>
-              <DialogDescription className="sr-only">
-                Formulaire catégorie : nom et image.
+              <DialogDescription className="text-[0.65rem] text-zay-text-muted tracking-wide">
+                Nom et photo de la catégorie dans le catalogue.
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSaveCategory} className="space-y-6 pt-4">
-              <div className="space-y-2">
-                <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nom de la catégorie</Label>
-                <Input required value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="ex: ROBES, JUPES..." className="rounded-none h-12 uppercase" />
-              </div>
-              <CatalogImagePicker
-                currentUrl={editingCat?.image}
-                file={newCatImage}
-                onFile={setNewCatImage}
-              />
+            <form onSubmit={handleSaveCategory} className="space-y-4">
+              <fieldset disabled={saving} className="space-y-4 disabled:opacity-70">
+                <div className="space-y-2">
+                  <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nom de la catégorie</Label>
+                  <Input required value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="ex: ROBES, JUPES..." className="rounded-none h-11 uppercase" />
+                </div>
+                <CatalogImagePicker
+                  currentUrl={editingCat?.image}
+                  file={newCatImage}
+                  onFile={setNewCatImage}
+                  disabled={saving}
+                />
+              </fieldset>
               <DialogFooter>
-                <Button type="submit" disabled={saving} className="w-full bg-primary py-6 rounded-none text-[0.65rem] font-bold uppercase tracking-widest">
-                  {saving ? 'Enregistrement…' : 'Enregistrer'}
+                <Button type="submit" disabled={saving || !newCatName.trim()} className="w-full bg-primary h-11 rounded-none text-[0.65rem] font-bold uppercase tracking-widest">
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enregistrement…
+                    </>
+                  ) : (
+                    'Enregistrer'
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -363,6 +433,7 @@ export default function AdminCategoriesPage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        disabled={deletingId === cat.id}
                         className="h-8 w-8 text-zay-text-muted hover:text-red-500"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -370,7 +441,11 @@ export default function AdminCategoriesPage() {
                         }}
                         aria-label={`Supprimer ${cat.name}`}
                       >
-                        <Trash2 size={14} />
+                        {deletingId === cat.id ? (
+                          <Loader2 size={14} className="animate-spin text-zay-text-muted" />
+                        ) : (
+                          <Trash2 size={14} />
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -400,6 +475,7 @@ export default function AdminCategoriesPage() {
                 <Dialog
                   open={isSubModalOpen}
                   onOpenChange={(open) => {
+                    if (saving && !open) return;
                     setIsSubModalOpen(open);
                     if (!open) {
                       resetSubForm();
@@ -407,28 +483,48 @@ export default function AdminCategoriesPage() {
                     }
                   }}
                 >
-                <DialogContent className="rounded-none border-zay-border">
+                <DialogContent
+                  className="rounded-none border-zay-border max-w-[420px] p-5 gap-3"
+                  onPointerDownOutside={(e) => {
+                    if (saving) e.preventDefault();
+                  }}
+                  onEscapeKeyDown={(e) => {
+                    if (saving) e.preventDefault();
+                  }}
+                >
                   <DialogHeader>
-                    <DialogTitle className="text-2xl font-headline italic">
-                      {editingSub ? 'Modifier la sous-catégorie' : 'Ajouter une Sous-catégorie'}
+                    <DialogTitle className="text-xl font-headline italic">
+                      {editingSub ? 'Modifier la sous-catégorie' : 'Nouvelle sous-catégorie'}
                     </DialogTitle>
-                    <DialogDescription className="sr-only">
-                      Formulaire sous-catégorie : nom et image.
+                    <DialogDescription className="text-[0.65rem] text-zay-text-muted tracking-wide">
+                      Nom et photo de la sous-catégorie.
                     </DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleSaveSubcategory} className="space-y-6 pt-4">
-                    <div className="space-y-2">
-                      <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nom</Label>
-                      <Input required value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="ex: Robes de soirée..." className="rounded-none h-12" />
-                    </div>
-                    <CatalogImagePicker
-                      currentUrl={editingSub?.image}
-                      file={newSubImage}
-                      onFile={setNewSubImage}
-                    />
+                  <form onSubmit={handleSaveSubcategory} className="space-y-4">
+                    <fieldset disabled={saving} className="space-y-4 disabled:opacity-70">
+                      <div className="space-y-2">
+                        <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nom</Label>
+                        <Input required value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="ex: Robes de soirée..." className="rounded-none h-11" />
+                      </div>
+                      <CatalogImagePicker
+                        currentUrl={editingSub?.image}
+                        file={newSubImage}
+                        onFile={setNewSubImage}
+                        disabled={saving}
+                      />
+                    </fieldset>
                     <DialogFooter>
-                      <Button type="submit" disabled={saving} className="w-full bg-primary py-6 rounded-none text-[0.65rem] font-bold uppercase tracking-widest">
-                        {saving ? 'Enregistrement…' : editingSub ? 'Enregistrer' : 'Ajouter'}
+                      <Button type="submit" disabled={saving || !newSubName.trim()} className="w-full bg-primary h-11 rounded-none text-[0.65rem] font-bold uppercase tracking-widest">
+                        {saving ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Enregistrement…
+                          </>
+                        ) : editingSub ? (
+                          'Enregistrer'
+                        ) : (
+                          'Ajouter'
+                        )}
                       </Button>
                     </DialogFooter>
                   </form>
@@ -462,11 +558,16 @@ export default function AdminCategoriesPage() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      disabled={deletingId === sub.id}
                       className="h-8 w-8 text-zay-text-muted hover:text-red-500"
                       onClick={() => void handleDeleteSubcategory(sub)}
                       aria-label={`Supprimer ${sub.name}`}
                     >
-                      <Trash2 size={14} />
+                      {deletingId === sub.id ? (
+                        <Loader2 size={14} className="animate-spin text-zay-text-muted" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
                     </Button>
                   </div>
                 </div>
