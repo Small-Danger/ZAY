@@ -1,17 +1,13 @@
-
 "use client"
 
 import React, { useEffect } from 'react';
 import { Instagram } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-/**
- * Custom TikTok Icon SVG
- */
 const TiktokIcon = ({ className }: { className?: string }) => (
-  <svg 
-    viewBox="0 0 24 24" 
-    fill="currentColor" 
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
     className={className}
     xmlns="http://www.w3.org/2000/svg"
   >
@@ -27,101 +23,72 @@ const INSTAGRAM_POSTS = [
 
 export const InstagramFeed = () => {
   useEffect(() => {
-    // Charger le script Instagram si ce n'est pas déjà fait
+    const process = () => {
+      (window as unknown as { instgrm?: { Embeds?: { process: () => void } } }).instgrm?.Embeds?.process();
+    };
+
+    if ((window as unknown as { instgrm?: unknown }).instgrm) {
+      process();
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>('script[src*="instagram.com/embed.js"]');
+    if (existing) {
+      existing.addEventListener('load', process);
+      return () => existing.removeEventListener('load', process);
+    }
+
     const script = document.createElement('script');
-    script.src = "//www.instagram.com/embed.js";
+    script.src = 'https://www.instagram.com/embed.js';
     script.async = true;
+    script.onload = process;
     document.body.appendChild(script);
-
-    script.onload = () => {
-      if ((window as any).instgrm) {
-        (window as any).instgrm.Embeds.process();
-      }
-    };
-
-    return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
   }, []);
 
   return (
-    <section className="py-24 bg-white">
+    <section className="py-16 md:py-24 lg:py-32 bg-white">
       <div className="container mx-auto px-4">
-        {/* Title Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 md:gap-8 mb-10 md:mb-16">
           <div className="space-y-4">
             <h2 className="text-[1.2rem] md:text-[1.6rem] lg:text-[2.2rem] font-black tracking-[0.25em] uppercase text-black border-l-8 border-primary pl-6">
-              L'UNIVERS ZAY
+              L&apos;UNIVERS ZAY
             </h2>
             <p className="text-zay-text-muted text-sm italic tracking-widest pl-8 max-w-lg">
-              Rejoignez-nous sur nos réseaux pour plus d'inspirations quotidiennes.
+              Rejoignez-nous sur nos réseaux pour plus d&apos;inspirations quotidiennes.
             </p>
           </div>
 
           <div className="flex items-center gap-6 pl-8 md:pl-0">
-             <a href="https://www.instagram.com/zay_dresss/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[0.7rem] font-black tracking-[0.2em] uppercase text-black hover:text-primary transition-colors">
-               <Instagram size={16} /> INSTAGRAM
-             </a>
-             <span className="w-px h-4 bg-zay-border" />
-             <a href="https://www.tiktok.com/@zay_dresss" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[0.7rem] font-black tracking-[0.2em] uppercase text-black hover:text-primary transition-colors">
-               <TiktokIcon className="w-4 h-4" /> TIKTOK
-             </a>
+            <a href="https://www.instagram.com/zay_dresss/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[0.7rem] font-black tracking-[0.2em] uppercase text-black hover:text-primary transition-colors">
+              <Instagram size={16} /> INSTAGRAM
+            </a>
+            <span className="w-px h-4 bg-zay-border" />
+            <a href="https://www.tiktok.com/@zay_dresss" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[0.7rem] font-black tracking-[0.2em] uppercase text-black hover:text-primary transition-colors">
+              <TiktokIcon className="w-4 h-4" /> TIKTOK
+            </a>
           </div>
         </div>
 
-        {/* Real Instagram Posts Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 md:gap-8 md:grid md:grid-cols-2 lg:grid-cols-3 pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible md:snap-none">
           {INSTAGRAM_POSTS.map((url, index) => (
-            <motion.div 
+            <motion.div
               key={url}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
-              className="flex justify-center overflow-hidden rounded-lg shadow-sm"
+              className="min-w-[min(78vw,340px)] max-w-[400px] snap-center shrink-0 md:min-w-0 md:w-full md:max-w-none"
             >
-              {/* Le conteneur ci-dessous permet de masquer la partie basse via un overflow-hidden et un aspect-ratio adapté aux Reels */}
-              <div className="w-full max-w-[400px] aspect-[9/14] overflow-hidden bg-gray-50 relative group">
-                <blockquote 
-                  className="instagram-media" 
+              <div className="zay-ig-crop group">
+                <blockquote
+                  className="instagram-media"
                   data-instgrm-permalink={url}
-                  data-instgrm-version="14" 
-                  style={{ 
-                    background: '#FFF', 
-                    border: '0', 
-                    borderRadius: '0', 
-                    margin: '0', 
-                    padding: '0', 
-                    width: '100%',
-                    height: '100%'
-                  }}
+                  data-instgrm-version="14"
                 >
-                  <div style={{ padding: '16px' }}>
-                    <a href={url} style={{ background: '#FFFFFF', lineHeight: '0', textAlign: 'center', textDecoration: 'none', width: '100%' }} target="_blank" rel="noopener noreferrer">
-                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-                        <div style={{ backgroundColor: '#F4F4F4', borderRadius: '50%', flexGrow: 0, height: '40px', marginRight: '14px', width: '40px' }}></div>
-                        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'center' }}>
-                          <div style={{ backgroundColor: '#F4F4F4', borderRadius: '4px', flexGrow: 0, height: '14px', marginBottom: '6px', width: '100px' }}></div>
-                          <div style={{ backgroundColor: '#F4F4F4', borderRadius: '4px', flexGrow: 0, height: '14px', width: '60px' }}></div>
-                        </div>
-                      </div>
-                      <div style={{ padding: '19% 0' }}></div>
-                      <div style={{ display: 'block', height: '50px', margin: '0 auto 12px', width: '50px' }}>
-                        <Instagram className="text-zay-text-muted opacity-20" size={50} strokeWidth={1} />
-                      </div>
-                      <div style={{ paddingTop: '8px' }}>
-                        <div style={{ color: '#3897f0', fontFamily: 'Arial,sans-serif', fontSize: '14px', fontStyle: 'normal', fontWeight: '550', lineHeight: '18px' }}>
-                          Lecture...
-                        </div>
-                      </div>
-                    </a>
-                  </div>
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="flex h-full items-center justify-center">
+                    <Instagram className="text-white/25" size={36} strokeWidth={1} />
+                  </a>
                 </blockquote>
-                
-                {/* Overlay discret pour inviter au clic sans masquer la vidéo */}
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
               </div>
             </motion.div>
           ))}

@@ -70,3 +70,35 @@
 .hero-overlay {
   background: linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0) 100%);
 }
+
+/* Recadre le widget Instagram : média seul, sans barre profil / « Voir plus » */
+.zay-ig-crop {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #0a0a0a;
+  border-radius: 2px;
+}
+
+.zay-ig-crop .instagram-media {
+  background: #0a0a0a !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  max-width: none !important;
+  min-width: 100% !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+.zay-ig-crop iframe {
+  margin: 0 !important;
+  max-width: none !important;
+  min-width: 100% !important;
+  position: relative !important;
+  top: -64px !important;
+  width: 100% !important;
+  border: 0 !important;
+}
