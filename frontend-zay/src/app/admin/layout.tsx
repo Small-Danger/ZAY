@@ -15,7 +15,6 @@ import {
   Bell,
   Grid,
   Mail,
-  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -32,6 +31,7 @@ import {
 } from '@/lib/api/contact';
 import { unlockDocumentBody } from '@/components/ui/dialog';
 import { useCartStore } from '@/store/useCartStore';
+import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
 
 const navItems = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -132,16 +132,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     .map((p) => p[0]?.toUpperCase() || '')
     .join('') || 'AU';
 
+  const settingsActive = pathname === '/admin/settings';
+  const messagesActive = pathname === '/admin/messages';
+
+  const navClass = (active: boolean) =>
+    cn(
+      'flex items-center gap-3 px-4 py-3 text-[0.65rem] tracking-[0.2em] font-bold uppercase transition-all rounded-sm',
+      active
+        ? 'bg-primary text-white'
+        : 'text-white/60 hover:bg-white/5 hover:text-white',
+    );
+
+  const markNavPending = (active: boolean) => {
+    if (!active) setNavPending(true);
+  };
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-zay-text text-white">
       <div className="p-8 border-b border-white/10">
-        <Link href="/admin" className="flex flex-col group">
+        <Link href="/admin" className="flex flex-col group" onClick={() => markNavPending(pathname === '/admin')}>
           <span className="font-headline text-3xl tracking-[0.3em] uppercase leading-none group-hover:text-primary transition-colors">ZAY</span>
           <span className="text-[0.5rem] tracking-[0.5em] font-light uppercase text-white/50 mt-1">Admin Panel</span>
         </Link>
       </div>
 
-      <nav className="flex-grow p-4 space-y-2 mt-4">
+      <nav className="flex-grow p-4 space-y-2 mt-4 overflow-y-auto">
         {navItems.map((item) => {
           const active =
             item.href === '/admin'
@@ -152,15 +167,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             key={item.href}
             href={item.href}
             prefetch
-            onClick={() => {
-              if (!active) setNavPending(true);
-            }}
-            className={cn(
-              "flex items-center gap-3 px-4 py-3 text-[0.65rem] tracking-[0.2em] font-bold uppercase transition-all rounded-sm",
-              active
-                ? "bg-primary text-white" 
-                : "text-white/60 hover:bg-white/5 hover:text-white"
-            )}
+            onClick={() => markNavPending(active)}
+            className={navClass(active)}
           >
             <item.icon size={16} />
             <span className="flex-1">{item.name}</span>
@@ -182,19 +190,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="p-4 border-t border-white/10 space-y-2">
         <Link
           href="/admin/settings"
-          className={cn(
-            "flex items-center gap-3 px-4 py-3 text-[0.65rem] tracking-[0.2em] font-bold uppercase transition-colors",
-            pathname === '/admin/settings'
-              ? "bg-primary text-white"
-              : "text-white/60 hover:text-white"
-          )}
+          onClick={() => markNavPending(settingsActive)}
+          className={navClass(settingsActive)}
         >
           <Settings size={16} /> Configuration
         </Link>
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-[0.65rem] tracking-[0.2em] font-bold uppercase text-red-400 hover:text-red-300 transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-3 text-[0.65rem] tracking-[0.2em] font-bold uppercase text-red-400 hover:text-red-300 hover:bg-white/5 transition-colors rounded-sm"
         >
           <LogOut size={16} /> Quitter l'admin
         </button>
@@ -204,8 +208,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader2 className="animate-spin text-primary" />
+      <div className="relative min-h-screen bg-white">
+        <AdminBusyOverlay show placement="fixed" label="Chargement de l’admin…" />
       </div>
     );
   }
@@ -217,7 +221,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       <div className="flex-grow lg:pl-[220px] flex flex-col">
-        <header className="h-16 bg-white border-b border-zay-border flex items-center justify-between px-8 sticky top-0 z-40">
+        <header className="h-16 bg-white border-b border-zay-border flex items-center justify-between lg:justify-end px-8 sticky top-0 z-40">
           <div className="lg:hidden">
             <Sheet>
               <SheetTrigger asChild>
@@ -231,21 +235,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Sheet>
           </div>
 
-          <div className="hidden lg:block">
-            <h2 className="text-[0.65rem] tracking-[0.3em] font-bold uppercase text-zay-text-muted">
-              {navItems.find(item => item.href === pathname)?.name
-                || (pathname === '/admin/settings'
-                  ? 'Configuration'
-                  : pathname.startsWith('/admin/clientes/')
-                    ? 'Cliente'
-                    : 'Admin')}
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 ml-auto">
             <Link
               href="/admin/messages"
-              className="relative text-zay-text-muted hover:text-primary transition-colors"
+              onClick={() => markNavPending(messagesActive)}
+              className={cn(
+                'relative transition-colors',
+                messagesActive ? 'text-primary' : 'text-zay-text-muted hover:text-primary',
+              )}
               aria-label="Messages contact"
             >
               <Bell size={18} />
@@ -255,7 +252,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </span>
               )}
             </Link>
-            <div className="flex items-center gap-3 pl-6 border-l border-zay-border">
+            <Link
+              href="/admin/settings"
+              onClick={() => markNavPending(settingsActive)}
+              className="flex items-center gap-3 pl-6 border-l border-zay-border hover:opacity-80 transition-opacity"
+              aria-label="Configuration du compte"
+            >
               <div className="text-right">
                 <p className="text-[0.65rem] font-bold uppercase tracking-wider">{displayName}</p>
                 <p className="text-[0.55rem] text-zay-text-muted uppercase tracking-tighter">
@@ -263,19 +265,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-zay-gray border border-zay-border flex items-center justify-center text-[0.6rem] font-bold">{initials}</div>
-            </div>
+            </Link>
           </div>
         </header>
 
-        <main className="p-8 relative">
-          {navPending && (
-            <div className="absolute inset-x-0 top-0 z-10 flex justify-center pointer-events-none">
-              <div className="mt-2 flex items-center gap-2 bg-white/90 border border-zay-border px-4 py-2 text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted shadow-sm">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                Chargement…
-              </div>
-            </div>
-          )}
+        <main className="p-8 relative min-h-[calc(100vh-4rem)]">
+          <AdminBusyOverlay show={navPending} label="Chargement…" />
           {children}
         </main>
       </div>

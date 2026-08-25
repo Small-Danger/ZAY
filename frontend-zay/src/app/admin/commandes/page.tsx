@@ -32,6 +32,7 @@ import {
   type ApiOrderStatus,
 } from '@/lib/api/orders';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
 import { MediaImage } from '@/components/ui/media-image';
@@ -92,9 +93,14 @@ function periodPresets() {
 }
 
 export default function AdminOrdersPage() {
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const [searchApplied, setSearchApplied] = useState('');
+  const searchParams = useSearchParams();
+  const qParam = searchParams.get('q')?.trim() ?? '';
+  const tabParam = searchParams.get('tab') ?? '';
+  const [filter, setFilter] = useState(
+    tabParam in TAB_STATUS ? tabParam : 'all',
+  );
+  const [search, setSearch] = useState(qParam);
+  const [searchApplied, setSearchApplied] = useState(qParam);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [periodDraft, setPeriodDraft] = useState({ from: '', to: '' });

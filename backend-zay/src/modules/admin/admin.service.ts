@@ -1,9 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, Prisma, Role } from '@prisma/client';
+import { ContactStatus, OrderStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateStoreSettingsDto } from './dto/store-settings.dto';
 
 const LOW_STOCK_THRESHOLD = 5;
+
+const LOW_STOCK_WHERE: Prisma.ProductWhereInput = {
+  OR: [
+    { stock: { lte: LOW_STOCK_THRESHOLD } },
+    { status: { in: ['Stock faible', 'Rupture'] } },
+  ],
+};
 
 @Injectable()
 export class AdminService {
@@ -65,6 +72,10 @@ export class AdminService {
       lowStockCount,
       recentOrders,
       seriesOrders,
+      toPrepareCount,
+      awaitingPaymentCount,
+      unreadMessages,
+      lowStockItems,
     ] = await Promise.all([
       this.prisma.order.count({
         where: { createdAt: { gte: startToday } },
@@ -99,12 +110,7 @@ export class AdminService {
         },
       }),
       this.prisma.product.count({
-        where: {
-          OR: [
-            { stock: { lte: LOW_STOCK_THRESHOLD } },
-            { status: { in: ['Stock faible', 'Rupture'] } },
-          ],
-        },
+        where: LOW_STOCK_WHERE,
       }),
       this.prisma.order.findMany({
         orderBy: { createdAt: 'desc' },
@@ -124,6 +130,23 @@ export class AdminService {
           status: { in: paidStatuses },
         },
         select: { total: true, createdAt: true },
+      }),
+      this.prisma.order.count({
+        where: {
+          status: { in: [OrderStatus.PAID, OrderStatus.PREPARING] },
+        },
+      }),
+      this.prisma.order.count({
+        where: { status: OrderStatus.PENDING },
+      }),
+      this.prisma.contactMessage.count({
+        where: { status: ContactStatus.NEW },
+      }),
+      this.prisma.product.findMany({
+        where: LOW_STOCK_WHERE,
+        orderBy: { stock: 'asc' },
+        take: 4,
+        select: { id: true, name: true, stock: true, image: true },
       }),
     ]);
 
@@ -154,6 +177,10 @@ export class AdminService {
       newUsersToday,
       newUsersTodayDeltaPct: this.deltaPct(newUsersToday, newUsersYesterday),
       lowStockCount,
+      lowStockItems,
+      toPrepareCount,
+      awaitingPaymentCount,
+      unreadMessages,
       revenueSeries,
       recentOrders,
     };

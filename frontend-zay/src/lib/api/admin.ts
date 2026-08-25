@@ -9,6 +9,15 @@ export type AdminStats = {
   newUsersToday: number;
   newUsersTodayDeltaPct: number;
   lowStockCount: number;
+  lowStockItems: {
+    id: string;
+    name: string;
+    stock: number;
+    image: string;
+  }[];
+  toPrepareCount: number;
+  awaitingPaymentCount: number;
+  unreadMessages: number;
   revenueSeries: { day: string; ca: number }[];
   recentOrders: {
     id: string;

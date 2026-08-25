@@ -9,6 +9,7 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts';
+import { formatMoney } from '@/lib/api/orders';
 
 type Point = { day: string; ca: number };
 
@@ -42,6 +43,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
             borderRadius: '0',
           }}
           labelStyle={{ fontSize: '10px', fontWeight: 'bold' }}
+          formatter={(value) => [formatMoney(Number(value ?? 0)), 'CA']}
         />
         <Area
           type="monotone"
