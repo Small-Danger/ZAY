@@ -81,23 +81,25 @@ export default function FAQPage() {
                 Aucune réponse pour « {query.trim()} ».
               </p>
             ) : (
-            sections.map((section, idx) => (
-              <div key={idx} className="space-y-6">
-                <h2 className="text-[0.7rem] tracking-[0.3em] font-light uppercase text-primary border-b border-zay-border pb-4">{section.category}</h2>
-                <Accordion type="single" collapsible className="w-full">
-                  {section.items.map((item, itemIdx) => (
-                    <AccordionItem key={itemIdx} value={`item-${idx}-${itemIdx}`} className="border-b border-zay-border/50">
-                      <AccordionTrigger className="text-left text-xs font-light uppercase tracking-widest hover:no-underline py-6">
-                        {item.q}
-                      </AccordionTrigger>
-                      <AccordionContent className="text-zay-text-muted italic leading-loose tracking-wide pb-6 font-light">
-                        {item.a}
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              </div>
-            ))}
+              <>
+                {sections.map((section, idx) => (
+                  <div key={idx} className="space-y-6">
+                    <h2 className="text-[0.7rem] tracking-[0.3em] font-light uppercase text-primary border-b border-zay-border pb-4">{section.category}</h2>
+                    <Accordion type="single" collapsible className="w-full">
+                      {section.items.map((item, itemIdx) => (
+                        <AccordionItem key={itemIdx} value={`item-${idx}-${itemIdx}`} className="border-b border-zay-border/50">
+                          <AccordionTrigger className="text-left text-xs font-light uppercase tracking-widest hover:no-underline py-6">
+                            {item.q}
+                          </AccordionTrigger>
+                          <AccordionContent className="text-zay-text-muted italic leading-loose tracking-wide pb-6 font-light">
+                            {item.a}
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  </div>
+                ))}
+              </>
             )}
           </div>
 

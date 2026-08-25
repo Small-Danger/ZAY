@@ -17,17 +17,6 @@ import { getAccessToken } from '@/lib/auth/session';
 import { MediaImage } from '@/components/ui/media-image';
 import { resolveMediaUrl } from '@/lib/api/config';
 import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
-import { useMyOrders } from '@/hooks/use-orders';
-import {
-  ORDER_STATUS_LABEL,
-  formatMoney,
-  formatOrderDate,
-} from '@/lib/api/orders';
-import { getAccessToken } from '@/lib/auth/session';
 
 export default function UserOrdersPage() {
   const [authed, setAuthed] = useState(false);
