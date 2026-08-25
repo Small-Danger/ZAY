@@ -63,3 +63,10 @@ export async function updateContactStatus(
     body: JSON.stringify({ status }),
   });
 }
+
+export const CONTACT_UNREAD_EVENT = 'zay:contact-unread';
+
+export function emitContactUnread(count: number) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(CONTACT_UNREAD_EVENT, { detail: count }));
+}

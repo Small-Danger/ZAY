@@ -5,10 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, User, Server, Store } from 'lucide-react';
+import { ShieldCheck, User, Store } from 'lucide-react';
 import { changePassword, fetchMe, updateProfile } from '@/lib/api/auth';
 import { getSessionUser } from '@/lib/auth/session';
-import { API_BASE_URL, API_ORIGIN } from '@/lib/api/config';
 import { fetchStoreSettings, updateStoreSettings } from '@/lib/api/store-settings';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
@@ -26,7 +25,6 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [pwdSaving, setPwdSaving] = useState(false);
   const [storeSaving, setStoreSaving] = useState(false);
-  const [apiStatus, setApiStatus] = useState<'ok' | 'down' | 'loading'>('loading');
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -86,14 +84,6 @@ export default function AdminSettingsPage() {
           /* ignore si migration pas encore appliquée */
         }),
     ]).finally(() => setLoading(false));
-
-    void fetch(`${API_BASE_URL}/health`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error('down');
-        const data = await res.json();
-        setApiStatus(data?.status === 'ok' ? 'ok' : 'down');
-      })
-      .catch(() => setApiStatus('down'));
   }, []);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -172,15 +162,6 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const copy = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      notifySuccess('Adresse copiée.');
-    } catch {
-      notifyError('Impossible de copier');
-    }
-  };
-
   if (loading) {
     return (
       <div className="relative min-h-[360px]">
@@ -197,7 +178,7 @@ export default function AdminSettingsPage() {
       <div>
         <h1 className="text-3xl font-headline italic">Configuration</h1>
         <p className="text-zay-text-muted text-xs tracking-widest uppercase italic mt-1">
-          Boutique, compte admin et connexion API
+          Boutique, profil et mot de passe
         </p>
       </div>
 
@@ -421,64 +402,6 @@ export default function AdminSettingsPage() {
             </Button>
           </div>
         </form>
-      </section>
-
-      <section className="bg-zay-main/40 border border-zay-border p-5 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Server size={16} className="text-zay-text-muted" />
-            <h2 className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">
-              API backend
-            </h2>
-          </div>
-          <Badge
-            className={cn(
-              'rounded-none text-[0.5rem] tracking-[0.1em] font-bold uppercase',
-              apiStatus === 'loading'
-                ? 'bg-zay-gray text-zay-text-muted'
-                : apiStatus === 'ok'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700',
-            )}
-          >
-            {apiStatus === 'loading'
-              ? 'Vérification…'
-              : apiStatus === 'ok'
-                ? 'Connecté'
-                : 'Hors ligne'}
-          </Badge>
-        </div>
-        <p className="text-[0.6rem] text-zay-text-muted italic">
-          Lecture seule — adresses utilisées par l’admin.
-        </p>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <p className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-              Base API
-            </p>
-            <button
-              type="button"
-              onClick={() => void copy(API_BASE_URL)}
-              className="w-full text-left font-mono text-[0.65rem] break-all text-zay-text hover:text-primary"
-              title="Copier"
-            >
-              {API_BASE_URL}
-            </button>
-          </div>
-          <div className="space-y-1">
-            <p className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-              Origine uploads
-            </p>
-            <button
-              type="button"
-              onClick={() => void copy(API_ORIGIN)}
-              className="w-full text-left font-mono text-[0.65rem] break-all text-zay-text hover:text-primary"
-              title="Copier"
-            >
-              {API_ORIGIN}
-            </button>
-          </div>
-        </div>
       </section>
     </div>
   );

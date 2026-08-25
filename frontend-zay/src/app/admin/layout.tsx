@@ -14,6 +14,7 @@ import {
   Menu,
   Bell,
   Grid,
+  Mail,
   Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,7 +26,10 @@ import {
   isAdminSession,
   type SessionUser,
 } from '@/lib/auth/session';
-import { fetchContactUnreadCount } from '@/lib/api/contact';
+import {
+  CONTACT_UNREAD_EVENT,
+  fetchContactUnreadCount,
+} from '@/lib/api/contact';
 import { unlockDocumentBody } from '@/components/ui/dialog';
 import { useCartStore } from '@/store/useCartStore';
 
@@ -36,6 +40,7 @@ const navItems = [
   { name: 'Commandes', href: '/admin/commandes', icon: ShoppingBag },
   { name: 'Promos', href: '/admin/promos', icon: Tag },
   { name: 'Clientes', href: '/admin/clientes', icon: Users },
+  { name: 'Messages', href: '/admin/messages', icon: Mail },
 ];
 
 const PREFETCH_ROUTES = [
@@ -84,11 +89,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         // ignore badge errors
       }
     };
+    const onUnread = (event: Event) => {
+      const count = (event as CustomEvent<number>).detail;
+      if (typeof count === 'number' && Number.isFinite(count)) {
+        setNewMessages(Math.max(0, Math.floor(count)));
+      }
+    };
     void loadBadge();
+    window.addEventListener(CONTACT_UNREAD_EVENT, onUnread);
     const id = window.setInterval(loadBadge, 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.removeEventListener(CONTACT_UNREAD_EVENT, onUnread);
     };
   }, [ready, pathname]);
 
@@ -150,7 +163,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           >
             <item.icon size={16} />
-            {item.name}
+            <span className="flex-1">{item.name}</span>
+            {item.href === '/admin/messages' && newMessages > 0 && (
+              <span
+                className={cn(
+                  'min-w-[1.15rem] h-4 px-1 rounded-full text-[0.5rem] font-bold flex items-center justify-center',
+                  active ? 'bg-white text-primary' : 'bg-primary text-white',
+                )}
+              >
+                {newMessages > 9 ? '9+' : newMessages}
+              </span>
+            )}
           </Link>
           );
         })}
@@ -213,11 +236,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {navItems.find(item => item.href === pathname)?.name
                 || (pathname === '/admin/settings'
                   ? 'Configuration'
-                  : pathname === '/admin/messages'
-                    ? 'Messages'
-                    : pathname.startsWith('/admin/clientes/')
-                      ? 'Cliente'
-                      : 'Admin')}
+                  : pathname.startsWith('/admin/clientes/')
+                    ? 'Cliente'
+                    : 'Admin')}
             </h2>
           </div>
 
