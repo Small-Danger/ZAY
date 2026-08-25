@@ -2,7 +2,21 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ShoppingBag, ArrowRight, Truck, Loader2 } from 'lucide-react';
+import { ShoppingBag, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
+import { useMyOrders } from '@/hooks/use-orders';
+import {
+  ORDER_STATUS_LABEL,
+  formatMoney,
+  formatOrderDate,
+} from '@/lib/api/orders';
+import { getAccessToken } from '@/lib/auth/session';
+import { MediaImage } from '@/components/ui/media-image';
+import { resolveMediaUrl } from '@/lib/api/config';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -33,7 +47,9 @@ export default function UserOrdersPage() {
       </div>
 
       {!ready || (authed && loading) ? (
-        <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
+        <div className="relative min-h-[240px]">
+          <ZayBusyOverlay show label="Chargement des commandes…" />
+        </div>
       ) : !authed ? (
         <div className="py-16 text-center space-y-6 border border-dashed border-zay-border">
           <p className="text-zay-text-muted italic text-sm">Connectez-vous pour voir vos commandes.</p>
@@ -69,8 +85,12 @@ export default function UserOrdersPage() {
               <div className="flex flex-col sm:flex-row">
                 <div className="relative w-full sm:w-24 md:w-32 aspect-[3/4] bg-zay-gray flex-shrink-0">
                   {order.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={order.thumbnailUrl} alt={order.number} className="w-full h-full object-cover" />
+                    <MediaImage
+                      src={resolveMediaUrl(order.thumbnailUrl)}
+                      alt={order.number}
+                      fill
+                      className="object-cover"
+                    />
                   ) : null}
                 </div>
 
@@ -103,14 +123,9 @@ export default function UserOrdersPage() {
                     </div>
 
                     <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
-                      <Button asChild variant="outline" className="flex-1 sm:flex-none h-9 md:h-10 rounded-none border-zay-border text-[0.55rem] md:text-[0.6rem] tracking-[0.2em] font-bold uppercase px-3">
+                      <Button asChild className="flex-1 sm:flex-none h-9 md:h-10 rounded-none bg-zay-text hover:bg-primary text-white text-[0.55rem] md:text-[0.6rem] tracking-[0.2em] font-bold uppercase px-4">
                         <Link href={`/commande/suivi?id=${encodeURIComponent(order.number)}`}>
-                          <Truck size={14} className="mr-2" /> Suivre
-                        </Link>
-                      </Button>
-                      <Button asChild className="flex-[1.5] sm:flex-none h-9 md:h-10 rounded-none bg-zay-text hover:bg-primary text-white text-[0.55rem] md:text-[0.6rem] tracking-[0.2em] font-bold uppercase px-4">
-                        <Link href={`/commande/suivi?id=${encodeURIComponent(order.number)}`}>
-                          Détails <ArrowRight size={14} className="ml-2" />
+                          Suivre <ArrowRight size={14} className="ml-2" />
                         </Link>
                       </Button>
                     </div>

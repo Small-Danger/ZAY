@@ -4,10 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, Mail, Loader2 } from 'lucide-react';
+import { ShieldCheck, Mail } from 'lucide-react';
 import { changePassword, fetchMe, updateProfile } from '@/lib/api/auth';
 import { getSessionUser } from '@/lib/auth/session';
-import { notify, notifyError } from '@/lib/notify';
+import { notifyError, notifySuccess } from '@/lib/notify';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
@@ -65,7 +66,7 @@ export default function ProfilePage() {
         email: user.email || '',
         phone: user.phone || '',
       });
-      notify('Profil mis à jour');
+      notifySuccess('Profil mis à jour.');
     } catch (err) {
       notifyError(err, 'Erreur mise à jour');
     } finally {
@@ -80,7 +81,7 @@ export default function ProfilePage() {
     try {
       await changePassword(pwd);
       setPwd({ currentPassword: '', newPassword: '' });
-      notify('Mot de passe modifié');
+      notifySuccess('Mot de passe modifié.');
     } catch (err) {
       notifyError(err, 'Erreur mot de passe');
     } finally {
@@ -90,8 +91,8 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="animate-spin text-primary" />
+      <div className="relative min-h-[280px]">
+        <ZayBusyOverlay show label="Chargement du profil…" />
       </div>
     );
   }
@@ -155,7 +156,7 @@ export default function ProfilePage() {
               disabled={saving}
               className="w-full md:w-auto bg-zay-text hover:bg-primary text-white px-10 md:px-12 py-6 md:py-7 rounded-none text-[0.65rem] md:text-[0.7rem] tracking-[0.3em] font-bold uppercase transition-all"
             >
-              {saving ? <Loader2 className="animate-spin" /> : 'Sauvegarder'}
+              {saving ? 'Enregistrement…' : 'Sauvegarder'}
             </Button>
           </form>
         </section>
@@ -200,7 +201,7 @@ export default function ProfilePage() {
               variant="outline"
               className="w-full md:w-auto border-zay-text text-zay-text px-10 md:px-12 py-6 md:py-7 rounded-none text-[0.65rem] md:text-[0.7rem] tracking-[0.3em] font-bold uppercase transition-all hover:bg-zay-text hover:text-white"
             >
-              {pwdSaving ? <Loader2 className="animate-spin" /> : 'Modifier le mot de passe'}
+              {pwdSaving ? 'Mise à jour…' : 'Modifier le mot de passe'}
             </Button>
           </form>
         </section>

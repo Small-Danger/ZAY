@@ -9,17 +9,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Mail, Loader2 } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { login, register } from '@/lib/api';
 import { syncCartWithServer } from '@/lib/cart-sync';
-import { notify, notifyError } from '@/lib/notify';
+import { notifyError } from '@/lib/notify';
 import { safeInternalPath } from '@/lib/auth/session';
 import { useRouter } from 'next/navigation';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
 export default function ConnexionPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [registerLoading, setRegisterLoading] = useState(false);
   const [fromCheckout, setFromCheckout] = useState(false);
   const router = useRouter();
 
@@ -50,7 +52,7 @@ export default function ConnexionPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setLoginLoading(true);
     try {
       const res = await login({
         email: formData.email,
@@ -63,13 +65,13 @@ export default function ConnexionPage() {
     } catch (err: unknown) {
       notifyError(err, 'Erreur de connexion');
     } finally {
-      setLoading(false);
+      setLoginLoading(false);
     }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setRegisterLoading(true);
     try {
       const res = await register({
         email: formData.email,
@@ -84,13 +86,11 @@ export default function ConnexionPage() {
     } catch (err: unknown) {
       notifyError(err, 'Erreur inscription');
     } finally {
-      setLoading(false);
+      setRegisterLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    notify('Connexion Google bientôt disponible.');
-  };
+  const busy = loginLoading || registerLoading;
 
   return (
     <div className="min-h-screen flex flex-col bg-zay-main">
@@ -99,8 +99,16 @@ export default function ConnexionPage() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-white p-8 md:p-12 shadow-sm border border-zay-border"
+          className="relative w-full max-w-md bg-white p-8 md:p-12 shadow-sm border border-zay-border overflow-hidden"
         >
+          <ZayBusyOverlay
+            show={busy}
+            label={loginLoading ? 'Connexion…' : 'Création du compte…'}
+          />
+          <h1 className="text-3xl font-headline italic text-center mb-2">Mon compte</h1>
+          <p className="text-center text-[0.65rem] tracking-widest uppercase text-zay-text-muted italic mb-8">
+            Connexion ou inscription
+          </p>
           {fromCheckout && (
             <p className="text-[0.7rem] text-zay-text-muted italic font-light text-center mb-8">
               Connectez-vous ou créez un compte pour payer. Votre panier est conservé.
@@ -128,7 +136,7 @@ export default function ConnexionPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Label className="text-[0.65rem] tracking-[0.1em] uppercase font-light text-zay-text-muted">Mot de passe</Label>
-                    <button type="button" className="text-[0.6rem] text-primary hover:underline uppercase tracking-tighter font-light">Oublié ?</button>
+                    <Link href="/contact" className="text-[0.6rem] text-primary hover:underline uppercase tracking-tighter font-light">Oublié ?</Link>
                   </div>
                   <div className="relative">
                     <Input 
@@ -149,23 +157,12 @@ export default function ConnexionPage() {
                   </div>
                 </div>
                 <Button 
-                  disabled={loading}
+                  disabled={loginLoading}
                   className="w-full bg-primary hover:bg-zay-text text-white py-7 rounded-full text-[0.7rem] tracking-[0.3em] font-light uppercase mt-4"
                 >
-                  {loading ? <Loader2 className="animate-spin" /> : "Se connecter"}
+                  {loginLoading ? 'Connexion…' : 'Se connecter'}
                 </Button>
               </form>
-              <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-zay-border"></span></div>
-                <div className="relative flex justify-center text-[0.6rem] uppercase bg-white px-2 text-zay-text-muted font-light">ou</div>
-              </div>
-              <Button 
-                onClick={handleGoogleSignIn}
-                variant="outline" 
-                className="w-full border-zay-border py-7 rounded-full text-[0.7rem] tracking-[0.2em] font-light uppercase flex items-center justify-center gap-3"
-              >
-                <Mail size={16} strokeWidth={1} /> Continuer avec Google
-              </Button>
             </TabsContent>
 
             <TabsContent value="register" className="space-y-6">
@@ -221,10 +218,10 @@ export default function ConnexionPage() {
                   </Label>
                 </div>
                 <Button 
-                  disabled={loading}
+                  disabled={registerLoading}
                   className="w-full bg-primary hover:bg-zay-text text-white py-7 rounded-full text-[0.7rem] tracking-[0.3em] font-light uppercase"
                 >
-                  {loading ? <Loader2 className="animate-spin" /> : "Créer mon compte"}
+                  {registerLoading ? 'Création…' : 'Créer mon compte'}
                 </Button>
               </form>
             </TabsContent>

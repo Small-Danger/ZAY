@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Check, ArrowRight, ChevronLeft, CreditCard, ShieldCheck, Loader2 } from 'lucide-react';
+import { Check, ArrowRight, ChevronLeft, CreditCard, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { createOrder, type ApiPaymentMethod } from '@/lib/api/orders';
@@ -19,12 +19,13 @@ import { fetchMe } from '@/lib/api/auth';
 import { applyLiveStockToCart } from '@/lib/cart-stock';
 import { getAccessToken, LOGIN_THEN_CHECKOUT } from '@/lib/auth/session';
 import { cn } from '@/lib/utils';
-import { notify, notifyError } from '@/lib/notify';
+import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
 const STEPS = [
   { id: 1, name: 'Livraison' },
   { id: 2, name: 'Paiement' },
-  { id: 3, name: 'Confirmation' },
+  { id: 3, name: 'Validation' },
 ];
 
 export default function CheckoutPage() {
@@ -195,13 +196,7 @@ export default function CheckoutPage() {
   };
 
   if (!mounted || !authed) {
-    return (
-      <div className="min-h-screen flex flex-col bg-zay-main">
-        <Header />
-        <main className="flex-grow pt-40 pb-24" />
-        <Footer />
-      </div>
-    );
+    return <StoreLoadingScreen label="Préparation de la commande…" />;
   }
 
   const paymentLabel =
@@ -210,7 +205,8 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen flex flex-col bg-zay-main">
       <Header />
-      <main className="flex-grow pt-40 md:pt-52 pb-24">
+      <main className="relative flex-grow pt-40 md:pt-52 pb-24">
+        <ZayBusyOverlay show={saving} placement="fixed" label="Redirection vers le paiement…" />
         <div className="container mx-auto px-4 max-w-6xl">
           
           {/* Stepper Indicator */}
@@ -415,7 +411,7 @@ export default function CheckoutPage() {
                         Modifier
                       </Button>
                       <Button disabled={saving} onClick={handleConfirmOrder} className="flex-[2] bg-zay-text hover:bg-primary text-white py-7 rounded-none text-[0.7rem] tracking-[0.3em] font-light uppercase">
-                        {saving ? <Loader2 className="animate-spin" /> : 'Confirmer et Payer'}
+                        {saving ? 'Redirection…' : 'Confirmer et payer'}
                       </Button>
                     </div>
                   </motion.div>

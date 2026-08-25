@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { Truck, Package, CheckCircle2, MapPin, Box, Loader2 } from 'lucide-react';
+import { Truck, Package, CheckCircle2, MapPin, Box } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchOrder, ORDER_STATUS_LABEL, type ApiOrder, type ApiOrderStatus } from '@/lib/api/orders';
 import { getAccessToken } from '@/lib/auth/session';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
 const STEP_DEFS = [
   { id: 1, label: 'Commande reçue', icon: Box, statuses: ['PENDING', 'PAID', 'PREPARING', 'SHIPPED', 'IN_TRANSIT', 'DELIVERED'] as ApiOrderStatus[] },
@@ -117,7 +118,9 @@ function TrackingContent() {
 
       <div className="bg-white p-8 md:p-12 border border-zay-border shadow-sm space-y-12">
         {loading ? (
-          <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary" /></div>
+          <div className="relative min-h-[200px]">
+            <ZayBusyOverlay show label="Chargement du suivi…" />
+          </div>
         ) : error ? (
           <div className="text-center space-y-4 py-8">
             <p className="text-sm text-red-500 italic">{error}</p>
@@ -202,7 +205,11 @@ export default function OrderTrackingPage() {
     <div className="min-h-screen flex flex-col bg-zay-main">
       <Header />
       <main className="flex-grow pt-32 pb-24">
-        <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>}>
+        <Suspense fallback={
+          <div className="relative min-h-[280px]">
+            <ZayBusyOverlay show label="Chargement du suivi…" />
+          </div>
+        }>
           <TrackingContent />
         </Suspense>
       </main>

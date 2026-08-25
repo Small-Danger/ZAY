@@ -14,8 +14,8 @@ import {
   Minus,
   ChevronRight,
   Check,
-  Loader2,
 } from 'lucide-react';
+import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import {
   Accordion,
   AccordionContent,
@@ -165,15 +165,7 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col bg-zay-main">
-        <Header />
-        <main className="flex-grow flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </main>
-        <Footer />
-      </div>
-    );
+    return <StoreLoadingScreen label="Chargement du produit…" />;
   }
 
   if (!product) {

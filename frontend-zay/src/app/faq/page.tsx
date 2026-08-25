@@ -1,7 +1,7 @@
 
 "use client"
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import {
@@ -38,6 +38,23 @@ const FAQ_DATA = [
 ];
 
 export default function FAQPage() {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const sections = useMemo(
+    () =>
+      FAQ_DATA.map((section) => ({
+        ...section,
+        items: q
+          ? section.items.filter(
+              (item) =>
+                item.q.toLowerCase().includes(q) ||
+                item.a.toLowerCase().includes(q),
+            )
+          : section.items,
+      })).filter((section) => section.items.length > 0),
+    [q],
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-zay-main">
       <Header />
@@ -49,12 +66,22 @@ export default function FAQPage() {
             <h1 className="text-5xl md:text-6xl font-headline italic text-zay-text font-light">Questions Fréquentes</h1>
             <div className="relative max-w-md mx-auto mt-8">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zay-text-muted" strokeWidth={1} />
-              <Input placeholder="Rechercher une réponse..." className="pl-12 h-12 border-zay-border bg-white rounded-none italic text-sm tracking-wide font-light" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Rechercher une réponse..."
+                className="pl-12 h-12 border-zay-border bg-white rounded-none italic text-sm tracking-wide font-light"
+              />
             </div>
           </div>
 
           <div className="space-y-16">
-            {FAQ_DATA.map((section, idx) => (
+            {sections.length === 0 ? (
+              <p className="text-center text-sm italic text-zay-text-muted">
+                Aucune réponse pour « {query.trim()} ».
+              </p>
+            ) : (
+            sections.map((section, idx) => (
               <div key={idx} className="space-y-6">
                 <h2 className="text-[0.7rem] tracking-[0.3em] font-light uppercase text-primary border-b border-zay-border pb-4">{section.category}</h2>
                 <Accordion type="single" collapsible className="w-full">
@@ -71,6 +98,7 @@ export default function FAQPage() {
                 </Accordion>
               </div>
             ))}
+            )}
           </div>
 
           <div className="mt-20 p-10 bg-zay-text text-white text-center space-y-6 rounded-none">

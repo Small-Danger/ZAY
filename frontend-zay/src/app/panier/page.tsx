@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { validatePromo } from '@/lib/api/promos';
 import { applyLiveStockToCart } from '@/lib/cart-stock';
 import { cn } from '@/lib/utils';
-import { notifyError } from '@/lib/notify';
+import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { checkoutPath } from '@/lib/auth/session';
 
 export default function PanierPage() {
@@ -88,13 +88,7 @@ export default function PanierPage() {
   };
 
   if (!mounted) {
-    return (
-      <div className="min-h-screen flex flex-col bg-zay-main">
-        <Header />
-        <main className="flex-grow pt-40 pb-24" />
-        <Footer />
-      </div>
-    );
+    return <StoreLoadingScreen label="Chargement du panier…" />;
   }
 
   return (

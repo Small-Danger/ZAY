@@ -22,7 +22,6 @@ import {
   X,
   LayoutGrid,
   Grid2X2,
-  Loader2,
 } from 'lucide-react';
 import { 
   Sheet, 
@@ -43,6 +42,7 @@ import { useCategories } from '@/hooks/use-categories';
 import { resolveMediaUrl } from '@/lib/api';
 import type { ApiCategory, UiProduct } from '@/lib/api';
 import { MediaImage } from '@/components/ui/media-image';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -91,8 +91,8 @@ export function CatalogueClient({
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-white">
-          <Loader2 className="animate-spin text-primary" />
+        <div className="relative min-h-screen bg-white">
+          <ZayBusyOverlay show placement="fixed" label="Chargement du catalogue…" />
         </div>
       }
     >
@@ -248,8 +248,8 @@ function CataloguePageInner({
       <section className="space-y-6">
         <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-zay-text-muted">CATÉGORIES</h4>
         {loadingCats && filterStructure.length === 0 ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="animate-spin text-primary" size={20} />
+          <div className="relative min-h-[80px]">
+            <ZayBusyOverlay show label="Catégories…" />
           </div>
         ) : filterStructure.length === 0 ? (
           <p className="text-[10px] italic text-zay-text-muted">Aucune catégorie.</p>
@@ -655,8 +655,8 @@ function CataloguePageInner({
           {/* Bulles catégories — mobile / tablette (comme home) */}
           <div className="lg:hidden mb-10 -mx-4 px-4">
             {loadingCats && filterStructure.length === 0 ? (
-              <div className="flex justify-center py-6">
-                <Loader2 className="animate-spin text-primary" size={20} />
+              <div className="relative min-h-[72px]">
+                <ZayBusyOverlay show label="Catégories…" />
               </div>
             ) : (
               <div className="flex overflow-x-auto no-scrollbar gap-5 pb-2">

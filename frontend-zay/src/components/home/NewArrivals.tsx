@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { ProductCard } from '@/components/product/ProductCard';
 import { isProductFullyOutOfStock, sizeStockMap } from '@/lib/product-stock';
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 import { useProducts } from '@/hooks/use-products';
 import type { UiProduct } from '@/lib/api';
 
@@ -28,7 +28,9 @@ export const NewArrivals = ({
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" /></div>
+          <div className="relative min-h-[220px]">
+            <ZayBusyOverlay show label="Chargement des pièces…" />
+          </div>
         ) : displayProducts.length === 0 ? (
           <div className="text-center py-20 italic text-muted-foreground text-sm">
             La nouvelle sélection arrive bientôt dans l'atelier ZAY.

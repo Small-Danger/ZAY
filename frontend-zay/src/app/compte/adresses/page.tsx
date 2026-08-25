@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MapPin, Plus, Trash2, Edit2, Check, Loader2 } from 'lucide-react';
+import { MapPin, Plus, Trash2, Edit2, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import {
@@ -23,7 +23,8 @@ import {
   updateAddress,
   type ApiAddress,
 } from '@/lib/api/addresses';
-import { notify, notifyError } from '@/lib/notify';
+import { notify, notifyError, notifySuccess } from '@/lib/notify';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
 const emptyForm = {
   name: '',
@@ -98,6 +99,7 @@ export default function AddressesPage() {
       setEditing(null);
       setForm(emptyForm);
       await load();
+      notifySuccess(editing ? 'Adresse mise à jour.' : 'Adresse enregistrée.');
     } catch (err) {
       notifyError(err, 'Erreur enregistrement');
     } finally {
@@ -198,7 +200,7 @@ export default function AddressesPage() {
               <DialogFooter className="mt-8 flex gap-3 sm:justify-end">
                 <Button type="button" variant="ghost" onClick={() => setIsAddModalOpen(false)} className="rounded-none text-[0.65rem] font-bold uppercase tracking-widest">Annuler</Button>
                 <Button type="submit" disabled={saving} className="bg-primary hover:bg-zay-text text-white rounded-none px-8 h-12 text-[0.65rem] font-bold uppercase tracking-widest">
-                  {saving ? <Loader2 className="animate-spin" /> : 'Enregistrer'}
+                  {saving ? 'Enregistrement…' : 'Enregistrer'}
                 </Button>
               </DialogFooter>
             </form>
@@ -207,11 +209,28 @@ export default function AddressesPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="animate-spin text-primary" /></div>
+        <div className="relative min-h-[240px]">
+          <ZayBusyOverlay show label="Chargement des adresses…" />
+        </div>
       ) : error ? (
         <p className="text-sm text-red-500 italic">{error}</p>
       ) : addresses.length === 0 ? (
-        <p className="text-sm text-zay-text-muted italic">Aucune adresse enregistrée.</p>
+        <div className="py-16 md:py-20 text-center space-y-6 border border-dashed border-zay-border">
+          <MapPin className="w-10 h-10 mx-auto text-primary" />
+          <p className="text-zay-text-muted italic tracking-widest text-xs md:text-sm">
+            Aucune adresse enregistrée.
+          </p>
+          <p className="text-[0.65rem] text-zay-text-muted max-w-sm mx-auto">
+            Ajoutez un lieu de livraison pour aller plus vite à la caisse.
+          </p>
+          <Button
+            type="button"
+            onClick={openCreate}
+            className="bg-primary hover:bg-zay-text text-white rounded-none px-8 py-6 text-[0.65rem] tracking-[0.2em] font-bold uppercase"
+          >
+            <Plus size={14} className="mr-2" /> Ajouter une adresse
+          </Button>
+        </div>
       ) : (
       <div className="grid md:grid-cols-2 gap-6">
         <AnimatePresence mode="popLayout">

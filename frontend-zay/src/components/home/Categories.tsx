@@ -3,11 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Sparkles, GraduationCap, Moon, Palmtree, Loader2 } from 'lucide-react';
+import { Sparkles, GraduationCap, Moon, Palmtree } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCategories } from '@/hooks/use-categories';
 import { resolveMediaUrl } from '@/lib/api';
 import { MediaImage } from '@/components/ui/media-image';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
 const RingIcon = ({ className }: { className?: string }) => (
   <svg 
@@ -99,8 +100,8 @@ export const Categories = () => {
         </div>
         
         {loading && categories.length === 0 ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="animate-spin text-primary" />
+          <div className="relative min-h-[180px]">
+            <ZayBusyOverlay show label="Chargement des catégories…" />
           </div>
         ) : (
           <div className="flex overflow-x-auto no-scrollbar gap-6 md:gap-10 lg:gap-14 pb-4 md:justify-between">

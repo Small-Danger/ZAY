@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Mail, Phone, MapPin, Instagram, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
+import { Mail, Phone, MapPin, Instagram, ArrowRight, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { sendContactMessage, type ContactSubject } from '@/lib/api/contact';
-import { notifyError } from '@/lib/notify';
+import { notifyError, notifySuccess } from '@/lib/notify';
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
 const SUBJECT_OPTIONS: { label: string; value: ContactSubject }[] = [
   { label: 'Suivi de ma commande', value: 'ORDER_TRACKING' },
@@ -39,6 +40,7 @@ export default function ContactPage() {
       await sendContactMessage(form);
       setSent(true);
       setForm({ firstName: '', lastName: '', email: '', subject: 'OTHER', message: '' });
+      notifySuccess('Message envoyé — nous vous répondons sous 24h.');
     } catch (err) {
       notifyError(err, 'Erreur envoi message');
     } finally {
@@ -88,6 +90,7 @@ export default function ContactPage() {
               transition={{ delay: 0.3 }}
               className="bg-neutral-900/50 p-8 md:p-12 border border-white/5 shadow-2xl rounded-sm relative overflow-hidden group backdrop-blur-xl"
             >
+              <ZayBusyOverlay show={saving} label="Envoi du message…" />
               <div className="absolute top-0 left-0 w-1 h-full bg-primary glow-pink opacity-50" />
               
               <form onSubmit={handleSubmit} className="space-y-8">
@@ -164,7 +167,7 @@ export default function ContactPage() {
                   className="w-full bg-primary text-white hover:bg-white hover:text-black py-8 rounded-none text-[0.7rem] tracking-[0.4em] font-bold uppercase transition-all duration-500 shadow-xl shadow-primary/10 group"
                 >
                   {saving ? (
-                    <Loader2 className="animate-spin" />
+                    'Envoi…'
                   ) : (
                     <>
                       ENVOYER LE MESSAGE <ArrowRight className="ml-3 w-4 h-4 transition-transform group-hover:translate-x-2" strokeWidth={1.5} />

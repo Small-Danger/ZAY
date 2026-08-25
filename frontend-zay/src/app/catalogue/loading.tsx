@@ -1,7 +1,11 @@
+'use client';
+
+import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
+
 export default function CatalogueLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    <div className="relative min-h-screen bg-white">
+      <ZayBusyOverlay show placement="fixed" label="Chargement du catalogue…" />
     </div>
   );
 }
