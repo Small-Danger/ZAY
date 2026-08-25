@@ -137,7 +137,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navClass = (active: boolean) =>
     cn(
-      'flex items-center gap-3 px-4 py-3 text-[0.65rem] tracking-[0.2em] font-bold uppercase transition-all rounded-sm',
+      'flex items-center gap-3 px-3 py-2.5 text-[0.65rem] tracking-[0.2em] font-bold uppercase transition-all rounded-sm',
       active
         ? 'bg-primary text-white'
         : 'text-white/60 hover:bg-white/5 hover:text-white',
@@ -149,14 +149,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-zay-text text-white">
-      <div className="p-8 border-b border-white/10">
+      <div className="px-6 py-6 border-b border-white/10">
         <Link href="/admin" className="flex flex-col group" onClick={() => markNavPending(pathname === '/admin')}>
           <span className="font-headline text-3xl tracking-[0.3em] uppercase leading-none group-hover:text-primary transition-colors">ZAY</span>
           <span className="text-[0.5rem] tracking-[0.5em] font-light uppercase text-white/50 mt-1">Admin Panel</span>
         </Link>
       </div>
 
-      <nav className="flex-grow p-4 space-y-2 mt-4 overflow-y-auto">
+      <nav className="flex-grow px-3 py-2 space-y-0.5 overflow-y-auto min-h-0">
         {navItems.map((item) => {
           const active =
             item.href === '/admin'
@@ -187,7 +187,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/10 space-y-2">
+      <div className="p-3 border-t border-white/10 space-y-0.5">
         <Link
           href="/admin/settings"
           onClick={() => markNavPending(settingsActive)}
@@ -198,7 +198,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-[0.65rem] tracking-[0.2em] font-bold uppercase text-red-400 hover:text-red-300 hover:bg-white/5 transition-colors rounded-sm"
+          className="w-full flex items-center gap-3 px-3 py-2.5 text-[0.65rem] tracking-[0.2em] font-bold uppercase text-red-400 hover:text-red-300 hover:bg-white/5 transition-colors rounded-sm"
         >
           <LogOut size={16} /> Quitter l'admin
         </button>

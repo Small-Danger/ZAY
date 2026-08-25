@@ -8,7 +8,6 @@ import {
   ShoppingBag, 
   Euro, 
   Users, 
-  AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
   Mail,
@@ -18,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { fetchAdminStats, type AdminStats } from '@/lib/api/admin';
+import { resolveMediaUrl } from '@/lib/api/config';
 import { ORDER_STATUS_LABEL, formatMoney, formatOrderDateTime } from '@/lib/api/orders';
 import { useCachedResource } from '@/hooks/use-cached-resource';
 import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
@@ -126,7 +126,12 @@ function ActionStrip({ stats }: { stats: AdminStats }) {
                 {lowItems.map((item) => (
                   <li key={item.id} className="flex items-center gap-2">
                     <span className="relative h-8 w-8 shrink-0 overflow-hidden bg-zay-gray">
-                      <MediaImage src={item.image} alt="" fill className="object-cover" />
+                      <MediaImage
+                        src={resolveMediaUrl(item.image)}
+                        alt=""
+                        fill
+                        className="object-cover"
+                      />
                     </span>
                     <span className="min-w-0">
                       <span className="block text-xs font-bold truncate">{item.name}</span>
@@ -189,7 +194,7 @@ export default function AdminDashboard() {
         <>
       <ActionStrip stats={stats} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Link href="/admin/commandes" className="block group">
           <Card className="rounded-none border-zay-border shadow-sm h-full group-hover:border-primary/40 transition-colors">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -225,26 +230,6 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="text-3xl font-headline italic font-bold">{stats.newUsersToday}</div>
               <Delta value={stats.newUsersTodayDeltaPct} />
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/admin/produits" className="block group">
-          <Card className={cn(
-            'rounded-none border-zay-border shadow-sm h-full group-hover:border-primary/40 transition-colors',
-            stats.lowStockCount > 0 && 'bg-zay-rose-pale',
-          )}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text">Stock faible</CardTitle>
-              <AlertTriangle className={cn('w-4 h-4', stats.lowStockCount > 0 ? 'text-primary' : 'text-zay-text-muted')} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-headline italic font-bold">{stats.lowStockCount}</div>
-              <p className="text-[0.6rem] text-zay-text-muted italic mt-1 font-bold">
-                {stats.lowStockCount > 0
-                  ? 'Articles à réapprovisionner'
-                  : 'Tout est en stock'}
-              </p>
             </CardContent>
           </Card>
         </Link>
