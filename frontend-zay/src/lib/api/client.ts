@@ -1,4 +1,4 @@
-import { apiRequestBase } from './config';
+import { API_BASE_URL, apiRequestBase } from './config';
 import { clearSession, getAccessToken } from '../auth/session';
 
 function withAuthHeaders(init?: RequestInit, json = true): HeadersInit {
@@ -18,14 +18,50 @@ function withAuthHeaders(init?: RequestInit, json = true): HeadersInit {
   return headers;
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${apiRequestBase()}${path}`, {
+function buildFetchInit(
+  init: RequestInit | undefined,
+  json: boolean,
+): RequestInit {
+  return {
     ...init,
-    headers: withAuthHeaders(init, true),
+    headers: withAuthHeaders(init, json),
     cache: init?.cache ?? 'no-store',
-  });
+    signal:
+      init?.signal ??
+      (typeof window === 'undefined' ? AbortSignal.timeout(8000) : undefined),
+  };
+}
 
+async function requestOnce<T>(
+  base: string,
+  path: string,
+  init: RequestInit | undefined,
+  json: boolean,
+): Promise<T> {
+  const res = await fetch(`${base}${path}`, buildFetchInit(init, json));
   return parseResponse<T>(res);
+}
+
+/** Sur le serveur Railway, l’URL interne peut être morte : on retente l’API publique. */
+async function requestWithServerFallback<T>(
+  path: string,
+  init: RequestInit | undefined,
+  json: boolean,
+): Promise<T> {
+  const primary = apiRequestBase().replace(/\/$/, '');
+  try {
+    return await requestOnce<T>(primary, path, init, json);
+  } catch (err) {
+    const fallback = API_BASE_URL.replace(/\/$/, '');
+    if (typeof window === 'undefined' && fallback && fallback !== primary) {
+      return requestOnce<T>(fallback, path, init, json);
+    }
+    throw err;
+  }
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  return requestWithServerFallback<T>(path, init, true);
 }
 
 /** multipart/form-data — ne pas forcer Content-Type (boundary auto). */
@@ -33,13 +69,7 @@ export async function apiFetchForm<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const res = await fetch(`${apiRequestBase()}${path}`, {
-    ...init,
-    headers: withAuthHeaders(init, false),
-    cache: 'no-store',
-  });
-
-  return parseResponse<T>(res);
+  return requestWithServerFallback<T>(path, init, false);
 }
 
 function formatApiError(status: number, text: string): string {

@@ -18,16 +18,19 @@ export function useProducts(
   const key = JSON.stringify(params);
   const cacheKey = `products:${key}`;
   const cached = memoryGet<UiProduct[]>(cacheKey);
+  const ssrHasProducts = Array.isArray(initial) && initial.length > 0;
 
   const [data, setData] = useState<UiProduct[]>(() => initial ?? cached ?? []);
-  const [loading, setLoading] = useState(() => initial === undefined && cached === undefined);
+  const [loading, setLoading] = useState(
+    () => !ssrHasProducts && cached === undefined,
+  );
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   const refetch = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
-    if (initial !== undefined && tick === 0 && key === '{}') {
+    if (ssrHasProducts && initial && tick === 0 && key === '{}') {
       memorySet(cacheKey, initial);
       setLoading(false);
       return;

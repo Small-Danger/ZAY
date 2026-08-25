@@ -11,15 +11,18 @@ import { memoryGet, memorySet } from '@/lib/memory-cache';
 export function useCategories(initial?: ApiCategory[]) {
   const cacheKey = 'categories';
   const cached = memoryGet<ApiCategory[]>(cacheKey);
+  const ssrHasCategories = Array.isArray(initial) && initial.length > 0;
   const [data, setData] = useState<ApiCategory[]>(() => initial ?? cached ?? []);
-  const [loading, setLoading] = useState(() => initial === undefined && cached === undefined);
+  const [loading, setLoading] = useState(
+    () => !ssrHasCategories && cached === undefined,
+  );
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   const refetch = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
-    if (initial !== undefined && tick === 0) {
+    if (ssrHasCategories && initial && tick === 0) {
       memorySet(cacheKey, initial);
       setLoading(false);
       return;
