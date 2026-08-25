@@ -363,7 +363,11 @@ export class OrdersService {
   async findAll(query: OrderQueryDto) {
     return this.prisma.order.findMany({
       where: this.buildWhere(query),
-      include: orderInclude,
+      include: {
+        user: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

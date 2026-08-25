@@ -5,12 +5,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, User, Loader2, Server, Store } from 'lucide-react';
+import { ShieldCheck, User, Server, Store } from 'lucide-react';
 import { changePassword, fetchMe, updateProfile } from '@/lib/api/auth';
 import { getSessionUser } from '@/lib/auth/session';
 import { API_BASE_URL, API_ORIGIN } from '@/lib/api/config';
 import { fetchStoreSettings, updateStoreSettings } from '@/lib/api/store-settings';
-import { notify, notifyError } from '@/lib/notify';
+import { notifyError, notifySuccess } from '@/lib/notify';
+import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
+import { cn } from '@/lib/utils';
+
+function sanitizeMoney(raw: string): string {
+  if (raw.trim() === '') return '';
+  const n = Number(raw.replace(',', '.'));
+  if (!Number.isFinite(n) || n < 0) return '0';
+  return raw;
+}
 
 export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(() => !getSessionUser());
@@ -105,7 +114,7 @@ export default function AdminSettingsPage() {
         phone: user.phone || '',
         role: user.role,
       }));
-      notify('Profil admin mis à jour');
+      notifySuccess('Profil administrateur mis à jour.');
     } catch (err) {
       notifyError(err, 'Erreur mise à jour');
     } finally {
@@ -121,9 +130,9 @@ export default function AdminSettingsPage() {
       const s = await updateStoreSettings({
         storeName: store.storeName.trim() || 'ZAY',
         contactEmail: store.contactEmail.trim() || null,
-        shippingCost: parseFloat(store.shippingCost) || 0,
+        shippingCost: Math.max(0, parseFloat(store.shippingCost) || 0),
         freeShippingThreshold: store.freeShippingThreshold.trim()
-          ? parseFloat(store.freeShippingThreshold)
+          ? Math.max(0, parseFloat(store.freeShippingThreshold))
           : null,
       });
       setStore({
@@ -133,7 +142,7 @@ export default function AdminSettingsPage() {
         freeShippingThreshold:
           s.freeShippingThreshold != null ? String(s.freeShippingThreshold) : '',
       });
-      notify('Paramètres boutique enregistrés');
+      notifySuccess('Paramètres boutique enregistrés.');
     } catch (err) {
       notifyError(err, 'Erreur boutique');
     } finally {
@@ -145,7 +154,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     if (pwdSaving) return;
     if (pwd.newPassword !== pwd.confirmPassword) {
-      notify('Les mots de passe ne correspondent pas.');
+      notifyError(new Error('Les mots de passe ne correspondent pas.'));
       return;
     }
     setPwdSaving(true);
@@ -155,7 +164,7 @@ export default function AdminSettingsPage() {
         newPassword: pwd.newPassword,
       });
       setPwd({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      notify('Mot de passe modifié');
+      notifySuccess('Mot de passe modifié.');
     } catch (err) {
       notifyError(err, 'Erreur mot de passe');
     } finally {
@@ -163,16 +172,28 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const copy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      notifySuccess('Adresse copiée.');
+    } catch {
+      notifyError('Impossible de copier');
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="animate-spin text-primary" />
+      <div className="relative min-h-[360px]">
+        <AdminBusyOverlay show label="Chargement de la configuration…" />
       </div>
     );
   }
 
+  const pwdMismatch =
+    pwd.confirmPassword.length > 0 && pwd.newPassword !== pwd.confirmPassword;
+
   return (
-    <div className="space-y-8 max-w-3xl">
+    <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-3xl font-headline italic">Configuration</h1>
         <p className="text-zay-text-muted text-xs tracking-widest uppercase italic mt-1">
@@ -180,205 +201,284 @@ export default function AdminSettingsPage() {
         </p>
       </div>
 
-      <section className="bg-white border border-zay-border shadow-sm p-8 space-y-6">
-        <div className="flex items-center gap-3 pb-4 border-b border-zay-border">
+      <section className="relative bg-white border border-zay-border shadow-sm overflow-hidden">
+        <AdminBusyOverlay show={storeSaving} label="Enregistrement…" />
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-zay-border">
           <Store size={16} className="text-primary" />
           <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">Boutique</h2>
         </div>
-        <form onSubmit={handleSaveStore} className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nom boutique</Label>
+        <form onSubmit={handleSaveStore}>
+          <div className="px-5 py-4 grid md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                Nom boutique
+              </Label>
               <Input
                 value={store.storeName}
                 onChange={(e) => setStore({ ...store, storeName: e.target.value })}
-                className="h-12 border-zay-border rounded-none"
+                className="h-10 border-zay-border rounded-none"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Email contact</Label>
+            <div className="space-y-1">
+              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                Email contact
+              </Label>
               <Input
                 type="email"
                 value={store.contactEmail}
                 onChange={(e) => setStore({ ...store, contactEmail: e.target.value })}
-                className="h-12 border-zay-border rounded-none"
+                className="h-10 border-zay-border rounded-none"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Frais de port (€)</Label>
+            <div className="space-y-1">
+              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                Frais de port (€)
+              </Label>
               <Input
                 type="number"
                 step="0.01"
                 min="0"
                 value={store.shippingCost}
-                onChange={(e) => setStore({ ...store, shippingCost: e.target.value })}
-                className="h-12 border-zay-border rounded-none"
+                onChange={(e) =>
+                  setStore({ ...store, shippingCost: sanitizeMoney(e.target.value) })
+                }
+                className="h-10 border-zay-border rounded-none"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Livraison offerte dès (€)</Label>
+            <div className="space-y-1">
+              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                Livraison offerte dès (€)
+              </Label>
               <Input
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="vide = jamais"
+                placeholder="Vide = jamais"
                 value={store.freeShippingThreshold}
-                onChange={(e) => setStore({ ...store, freeShippingThreshold: e.target.value })}
-                className="h-12 border-zay-border rounded-none"
+                onChange={(e) =>
+                  setStore({
+                    ...store,
+                    freeShippingThreshold: sanitizeMoney(e.target.value),
+                  })
+                }
+                className="h-10 border-zay-border rounded-none"
               />
             </div>
           </div>
-          <Button
-            type="submit"
-            disabled={storeSaving}
-            className="bg-primary hover:bg-zay-text text-white rounded-none px-10 h-12 text-[0.65rem] font-bold uppercase tracking-widest"
-          >
-            {storeSaving ? <Loader2 className="animate-spin" /> : 'Enregistrer la boutique'}
-          </Button>
+          <div className="border-t border-zay-border px-5 py-3">
+            <Button
+              type="submit"
+              disabled={storeSaving}
+              className="w-full bg-primary hover:bg-zay-text text-white rounded-none h-10 text-[0.65rem] font-bold uppercase tracking-widest"
+            >
+              Enregistrer la boutique
+            </Button>
+          </div>
         </form>
       </section>
 
-      <section className="bg-white border border-zay-border shadow-sm p-8 space-y-6">
-        <div className="flex items-center gap-3 pb-4 border-b border-zay-border">
-          <Server size={16} className="text-primary" />
-          <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">API Backend</h2>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-4 text-xs">
-          <div>
-            <p className="text-[0.6rem] font-bold uppercase tracking-widest text-zay-text-muted mb-1">Base API</p>
-            <p className="font-mono text-[0.7rem] break-all">{API_BASE_URL}</p>
-          </div>
-          <div>
-            <p className="text-[0.6rem] font-bold uppercase tracking-widest text-zay-text-muted mb-1">Origine uploads</p>
-            <p className="font-mono text-[0.7rem] break-all">{API_ORIGIN}</p>
-          </div>
-          <div className="sm:col-span-2 flex items-center gap-3">
-            <p className="text-[0.6rem] font-bold uppercase tracking-widest text-zay-text-muted">Statut</p>
-            {apiStatus === 'loading' ? (
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            ) : (
-              <Badge
-                className={
-                  apiStatus === 'ok'
-                    ? 'rounded-none text-[0.5rem] tracking-[0.1em] font-bold uppercase bg-green-100 text-green-700'
-                    : 'rounded-none text-[0.5rem] tracking-[0.1em] font-bold uppercase bg-red-100 text-red-700'
-                }
-              >
-                {apiStatus === 'ok' ? 'Connecté' : 'Hors ligne'}
-              </Badge>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-white border border-zay-border shadow-sm p-8 space-y-6">
-        <div className="flex items-center justify-between gap-3 pb-4 border-b border-zay-border">
+      <section className="relative bg-white border border-zay-border shadow-sm overflow-hidden">
+        <AdminBusyOverlay show={saving} label="Enregistrement…" />
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-zay-border">
           <div className="flex items-center gap-3">
             <User size={16} className="text-primary" />
-            <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">Profil administrateur</h2>
+            <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">
+              Profil administrateur
+            </h2>
           </div>
           <Badge className="rounded-none text-[0.5rem] tracking-[0.1em] font-bold uppercase bg-zay-rose-pale text-primary">
             {form.role}
           </Badge>
         </div>
-
-        <form onSubmit={handleSaveProfile} className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Prénom</Label>
-              <Input
-                value={form.firstName}
-                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                className="h-12 border-zay-border rounded-none"
-              />
+        <form onSubmit={handleSaveProfile}>
+          <div className="px-5 py-4 space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                  Prénom
+                </Label>
+                <Input
+                  value={form.firstName}
+                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                  className="h-10 border-zay-border rounded-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                  Nom
+                </Label>
+                <Input
+                  value={form.lastName}
+                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                  className="h-10 border-zay-border rounded-none"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nom</Label>
-              <Input
-                value={form.lastName}
-                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                className="h-12 border-zay-border rounded-none"
-              />
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                  Email
+                </Label>
+                <Input
+                  type="email"
+                  value={form.email}
+                  disabled
+                  className="h-10 border-zay-border rounded-none opacity-70"
+                />
+                <p className="text-[0.55rem] text-zay-text-muted italic">Lecture seule</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                  Téléphone
+                </Label>
+                <Input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="h-10 border-zay-border rounded-none"
+                />
+              </div>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Email</Label>
-            <Input
-              type="email"
-              value={form.email}
-              disabled
-              className="h-12 border-zay-border rounded-none opacity-70"
-            />
+          <div className="border-t border-zay-border px-5 py-3">
+            <Button
+              type="submit"
+              disabled={saving}
+              className="w-full bg-primary hover:bg-zay-text text-white rounded-none h-10 text-[0.65rem] font-bold uppercase tracking-widest"
+            >
+              Enregistrer le profil
+            </Button>
           </div>
-          <div className="space-y-2">
-            <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Téléphone</Label>
-            <Input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="h-12 border-zay-border rounded-none"
-            />
-          </div>
-          <Button
-            type="submit"
-            disabled={saving}
-            className="bg-primary hover:bg-zay-text text-white rounded-none px-10 h-12 text-[0.65rem] font-bold uppercase tracking-widest"
-          >
-            {saving ? <Loader2 className="animate-spin" /> : 'Enregistrer le profil'}
-          </Button>
         </form>
       </section>
 
-      <section className="bg-white border border-zay-border shadow-sm p-8 space-y-6">
-        <div className="flex items-center gap-3 pb-4 border-b border-zay-border">
+      <section className="relative bg-white border border-zay-border shadow-sm overflow-hidden">
+        <AdminBusyOverlay show={pwdSaving} label="Mise à jour…" />
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-zay-border">
           <ShieldCheck size={16} className="text-primary" />
           <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">Sécurité</h2>
         </div>
-        <form onSubmit={handleChangePassword} className="space-y-6">
-          <div className="space-y-2">
-            <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Mot de passe actuel</Label>
-            <Input
-              type="password"
-              required
-              minLength={8}
-              value={pwd.currentPassword}
-              onChange={(e) => setPwd({ ...pwd, currentPassword: e.target.value })}
-              className="h-12 border-zay-border rounded-none"
-            />
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Nouveau</Label>
+        <form onSubmit={handleChangePassword}>
+          <div className="px-5 py-4 space-y-4">
+            <div className="space-y-1">
+              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                Mot de passe actuel
+              </Label>
               <Input
                 type="password"
                 required
                 minLength={8}
-                value={pwd.newPassword}
-                onChange={(e) => setPwd({ ...pwd, newPassword: e.target.value })}
-                className="h-12 border-zay-border rounded-none"
+                value={pwd.currentPassword}
+                onChange={(e) => setPwd({ ...pwd, currentPassword: e.target.value })}
+                className="h-10 border-zay-border rounded-none"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Confirmer</Label>
-              <Input
-                type="password"
-                required
-                minLength={8}
-                value={pwd.confirmPassword}
-                onChange={(e) => setPwd({ ...pwd, confirmPassword: e.target.value })}
-                className="h-12 border-zay-border rounded-none"
-              />
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                  Nouveau
+                </Label>
+                <Input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={pwd.newPassword}
+                  onChange={(e) => setPwd({ ...pwd, newPassword: e.target.value })}
+                  className="h-10 border-zay-border rounded-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                  Confirmer
+                </Label>
+                <Input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={pwd.confirmPassword}
+                  onChange={(e) => setPwd({ ...pwd, confirmPassword: e.target.value })}
+                  className={cn(
+                    'h-10 border-zay-border rounded-none',
+                    pwdMismatch && 'border-red-400',
+                  )}
+                />
+              </div>
             </div>
+            {pwdMismatch && (
+              <p className="text-[0.65rem] text-red-500">
+                Les deux mots de passe ne correspondent pas.
+              </p>
+            )}
           </div>
-          <Button
-            type="submit"
-            disabled={pwdSaving}
-            variant="outline"
-            className="border-zay-text text-zay-text rounded-none px-10 h-12 text-[0.65rem] font-bold uppercase tracking-widest hover:bg-zay-text hover:text-white"
-          >
-            {pwdSaving ? <Loader2 className="animate-spin" /> : 'Modifier le mot de passe'}
-          </Button>
+          <div className="border-t border-zay-border px-5 py-3">
+            <Button
+              type="submit"
+              disabled={pwdSaving || pwdMismatch}
+              variant="outline"
+              className="w-full border-zay-text text-zay-text rounded-none h-10 text-[0.65rem] font-bold uppercase tracking-widest hover:bg-zay-text hover:text-white"
+            >
+              Modifier le mot de passe
+            </Button>
+          </div>
         </form>
+      </section>
+
+      <section className="bg-zay-main/40 border border-zay-border p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Server size={16} className="text-zay-text-muted" />
+            <h2 className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">
+              API backend
+            </h2>
+          </div>
+          <Badge
+            className={cn(
+              'rounded-none text-[0.5rem] tracking-[0.1em] font-bold uppercase',
+              apiStatus === 'loading'
+                ? 'bg-zay-gray text-zay-text-muted'
+                : apiStatus === 'ok'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-700',
+            )}
+          >
+            {apiStatus === 'loading'
+              ? 'Vérification…'
+              : apiStatus === 'ok'
+                ? 'Connecté'
+                : 'Hors ligne'}
+          </Badge>
+        </div>
+        <p className="text-[0.6rem] text-zay-text-muted italic">
+          Lecture seule — adresses utilisées par l’admin.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <p className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+              Base API
+            </p>
+            <button
+              type="button"
+              onClick={() => void copy(API_BASE_URL)}
+              className="w-full text-left font-mono text-[0.65rem] break-all text-zay-text hover:text-primary"
+              title="Copier"
+            >
+              {API_BASE_URL}
+            </button>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+              Origine uploads
+            </p>
+            <button
+              type="button"
+              onClick={() => void copy(API_ORIGIN)}
+              className="w-full text-left font-mono text-[0.65rem] break-all text-zay-text hover:text-primary"
+              title="Copier"
+            >
+              {API_ORIGIN}
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   );

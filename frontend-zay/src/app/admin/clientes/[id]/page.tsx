@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Loader2, Mail, MapPin, Phone } from 'lucide-react';
+import { ArrowLeft, Mail, MapPin, Phone } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchAdminUser, type AdminUserDetail } from '@/lib/api/admin';
 import { ORDER_STATUS_LABEL, formatMoney, formatOrderDate, formatOrderDateTime } from '@/lib/api/orders';
 import { cn } from '@/lib/utils';
+import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
 
 export default function AdminClienteDetailPage() {
   const params = useParams();
@@ -40,8 +41,8 @@ export default function AdminClienteDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="animate-spin text-primary" />
+      <div className="relative min-h-[360px]">
+        <AdminBusyOverlay show label="Chargement de la cliente…" />
       </div>
     );
   }
@@ -139,7 +140,14 @@ export default function AdminClienteDetailPage() {
                   const label = ORDER_STATUS_LABEL[order.status];
                   return (
                     <TableRow key={order.id} className="hover:bg-zay-main transition-colors">
-                      <TableCell className="pl-6 py-4 text-xs font-bold">{order.number}</TableCell>
+                      <TableCell className="pl-6 py-4 text-xs font-bold">
+                        <Link
+                          href={`/commande/suivi?id=${encodeURIComponent(order.number)}`}
+                          className="hover:text-primary transition-colors"
+                        >
+                          {order.number}
+                        </Link>
+                      </TableCell>
                       <TableCell className="text-xs text-zay-text-muted">
                         {formatOrderDateTime(order.createdAt)}
                       </TableCell>

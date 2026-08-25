@@ -1,11 +1,11 @@
 "use client"
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Eye, Download, Calendar, Loader2 } from 'lucide-react';
+import { Search, Eye, Download, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { 
   Tabs, 
@@ -24,6 +24,7 @@ import { useAdminOrders } from '@/hooks/use-orders';
 import {
   ORDER_STATUS_LABEL,
   exportOrdersCsv,
+  fetchOrder,
   formatMoney,
   formatOrderDateTime,
   updateOrderStatus,
@@ -31,7 +32,9 @@ import {
   type ApiOrderStatus,
 } from '@/lib/api/orders';
 import Link from 'next/link';
-import { notifyError } from '@/lib/notify';
+import { notifyError, notifySuccess } from '@/lib/notify';
+import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
+import { MediaImage } from '@/components/ui/media-image';
 
 const TAB_STATUS: Record<string, ApiOrderStatus | undefined> = {
   all: undefined,
@@ -52,6 +55,42 @@ const STATUS_OPTIONS: ApiOrderStatus[] = [
   'REFUNDED',
 ];
 
+function toIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatFrDate(iso: string): string {
+  if (!iso || iso.length < 10) return iso;
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function periodPresets() {
+  const today = new Date();
+  const last7 = new Date();
+  last7.setDate(today.getDate() - 6);
+  const last30 = new Date();
+  last30.setDate(today.getDate() - 29);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+  return [
+    { id: 'today', label: 'Aujourd’hui', from: toIsoDate(today), to: toIsoDate(today) },
+    { id: '7d', label: '7 jours', from: toIsoDate(last7), to: toIsoDate(today) },
+    { id: '30d', label: '30 jours', from: toIsoDate(last30), to: toIsoDate(today) },
+    { id: 'month', label: 'Ce mois', from: toIsoDate(monthStart), to: toIsoDate(today) },
+    {
+      id: 'prev',
+      label: 'Mois dernier',
+      from: toIsoDate(prevMonthStart),
+      to: toIsoDate(prevMonthEnd),
+    },
+  ] as const;
+}
+
 export default function AdminOrdersPage() {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -67,6 +106,12 @@ export default function AdminOrdersPage() {
   const [trackingCode, setTrackingCode] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
   const [saving, setSaving] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setSearchApplied(search.trim()), 350);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   const params = useMemo(
     () => ({
@@ -86,6 +131,17 @@ export default function AdminOrdersPage() {
     setCarrier(order.carrier || '');
     setTrackingCode(order.trackingCode || '');
     setTrackingUrl(order.trackingUrl || '');
+    setDetailLoading(true);
+    void fetchOrder(order.id)
+      .then((full) => {
+        setSelected(full);
+        setStatus(full.status);
+        setCarrier(full.carrier || '');
+        setTrackingCode(full.trackingCode || '');
+        setTrackingUrl(full.trackingUrl || '');
+      })
+      .catch((err) => notifyError(err, 'Impossible de charger le détail'))
+      .finally(() => setDetailLoading(false));
   };
 
   const handleSaveStatus = async () => {
@@ -98,6 +154,7 @@ export default function AdminOrdersPage() {
         trackingCode: trackingCode.trim() || undefined,
         trackingUrl: trackingUrl.trim() || undefined,
       });
+      notifySuccess(`Commande ${selected.number} mise à jour.`);
       setSelected(null);
       await refetch();
     } catch (err) {
@@ -121,8 +178,24 @@ export default function AdminOrdersPage() {
 
   const periodLabel =
     from || to
-      ? `${from || '…'} → ${to || '…'}`
+      ? `${from ? formatFrDate(from) : '…'} → ${to ? formatFrDate(to) : '…'}`
       : 'Période';
+
+  const presets = periodPresets();
+  const activePresetId = presets.find(
+    (p) => p.from === periodDraft.from && p.to === periodDraft.to,
+  )?.id;
+
+  const applyPeriod = (nextFrom: string, nextTo: string) => {
+    let start = nextFrom;
+    let end = nextTo;
+    if (start && end && start > end) {
+      [start, end] = [end, start];
+    }
+    setFrom(start);
+    setTo(end);
+    setPeriodOpen(false);
+  };
 
   return (
     <div className="space-y-8">
@@ -133,7 +206,7 @@ export default function AdminOrdersPage() {
             Gestion et suivi des ventes
             {(from || to) && (
               <span className="not-italic ml-2 text-primary">
-                · {from || '…'} → {to || '…'}
+                · {from ? formatFrDate(from) : '…'} → {to ? formatFrDate(to) : '…'}
               </span>
             )}
           </p>
@@ -146,8 +219,8 @@ export default function AdminOrdersPage() {
             onClick={() => void handleExport()}
             className="rounded-none border-zay-border h-12 text-[0.65rem] tracking-[0.2em] font-bold uppercase"
           >
-            {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-            Exporter
+            <Download className="w-4 h-4 mr-2" />
+            {exporting ? 'Export…' : 'Exporter'}
           </Button>
           <Button
             type="button"
@@ -155,7 +228,12 @@ export default function AdminOrdersPage() {
               setPeriodDraft({ from, to });
               setPeriodOpen(true);
             }}
-            className="bg-zay-text hover:bg-primary text-white rounded-none px-6 py-6 text-[0.65rem] tracking-[0.2em] font-bold uppercase transition-all"
+            className={cn(
+              'rounded-none px-6 py-6 text-[0.65rem] tracking-[0.2em] font-bold uppercase transition-all',
+              from || to
+                ? 'bg-primary text-white hover:bg-zay-text'
+                : 'bg-zay-text hover:bg-primary text-white',
+            )}
           >
             <Calendar className="w-4 h-4 mr-2" /> {periodLabel}
           </Button>
@@ -189,14 +267,15 @@ export default function AdminOrdersPage() {
           </form>
         </div>
 
-        <div className="bg-white border border-zay-border shadow-sm overflow-hidden">
-          {loading && orders.length === 0 ? (
-            <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
-          ) : error && orders.length === 0 ? (
+        <div className="relative min-h-[280px] bg-white border border-zay-border shadow-sm overflow-hidden">
+          <AdminBusyOverlay show={loading} label="Chargement des commandes…" />
+          {!loading && error && orders.length === 0 ? (
             <div className="p-12 text-center text-sm text-red-500 italic">{error}</div>
-          ) : orders.length === 0 ? (
-            <div className="p-12 text-center text-sm text-zay-text-muted italic">Aucune commande.</div>
-          ) : (
+          ) : !loading && orders.length === 0 ? (
+            <div className="p-12 text-center text-sm text-zay-text-muted italic">
+              Aucune commande pour ce filtre.
+            </div>
+          ) : orders.length > 0 ? (
           <Table>
             <TableHeader className="bg-zay-main">
               <TableRow className="hover:bg-transparent">
@@ -248,9 +327,11 @@ export default function AdminOrdersPage() {
               })}
             </TableBody>
           </Table>
-          )}
+          ) : null}
         </div>
       </Tabs>
+
+      <AdminBusyOverlay show={exporting} label="Export CSV…" placement="fixed" />
 
       <Dialog
         open={periodOpen}
@@ -259,51 +340,91 @@ export default function AdminOrdersPage() {
           if (!open) document.body.style.pointerEvents = '';
         }}
       >
-        <DialogContent className="rounded-none border-zay-border max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-headline italic">Période</DialogTitle>
+        <DialogContent className="rounded-none border-zay-border max-w-[420px] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 border-b border-zay-border">
+            <DialogTitle className="text-xl font-headline italic">Période</DialogTitle>
+            <p className="text-[0.65rem] text-zay-text-muted tracking-wide">
+              Filtrer les commandes par dates.
+            </p>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Du</Label>
-              <Input
-                type="date"
-                value={periodDraft.from}
-                onChange={(e) => setPeriodDraft((p) => ({ ...p, from: e.target.value }))}
-                className="h-12 border-zay-border rounded-none"
-              />
+          <div className="px-5 py-4 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {presets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setPeriodDraft({ from: preset.from, to: preset.to });
+                    applyPeriod(preset.from, preset.to);
+                  }}
+                  className={cn(
+                    'h-8 px-3 text-[0.55rem] font-bold uppercase tracking-widest border rounded-none transition-colors',
+                    activePresetId === preset.id ||
+                      (from === preset.from && to === preset.to)
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-zay-border text-zay-text hover:border-primary hover:text-primary',
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
-            <div className="space-y-2">
-              <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Au</Label>
-              <Input
-                type="date"
-                value={periodDraft.to}
-                onChange={(e) => setPeriodDraft((p) => ({ ...p, to: e.target.value }))}
-                className="h-12 border-zay-border rounded-none"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                  Du
+                </Label>
+                <Input
+                  type="date"
+                  value={periodDraft.from}
+                  max={periodDraft.to || undefined}
+                  onChange={(e) =>
+                    setPeriodDraft((p) => ({ ...p, from: e.target.value }))
+                  }
+                  className="h-10 border-zay-border rounded-none text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                  Au
+                </Label>
+                <Input
+                  type="date"
+                  value={periodDraft.to}
+                  min={periodDraft.from || undefined}
+                  onChange={(e) =>
+                    setPeriodDraft((p) => ({ ...p, to: e.target.value }))
+                  }
+                  className="h-10 border-zay-border rounded-none text-xs"
+                />
+              </div>
             </div>
+            {(periodDraft.from || periodDraft.to) && (
+              <p className="text-[0.65rem] text-zay-text-muted">
+                {periodDraft.from ? formatFrDate(periodDraft.from) : '…'}
+                {' → '}
+                {periodDraft.to ? formatFrDate(periodDraft.to) : '…'}
+              </p>
+            )}
           </div>
-          <DialogFooter className="gap-2 flex-wrap">
+          <DialogFooter className="border-t border-zay-border px-5 py-3 gap-2 sm:justify-between">
             <Button
               type="button"
               variant="ghost"
               onClick={() => {
+                setPeriodDraft({ from: '', to: '' });
                 setFrom('');
                 setTo('');
                 setPeriodOpen(false);
               }}
               className="rounded-none text-[0.65rem] font-bold uppercase tracking-widest"
             >
-              Effacer
+              Tout voir
             </Button>
             <Button
               type="button"
-              onClick={() => {
-                setFrom(periodDraft.from);
-                setTo(periodDraft.to);
-                setPeriodOpen(false);
-              }}
-              className="bg-primary text-white rounded-none px-8 h-12 text-[0.65rem] font-bold uppercase tracking-widest"
+              onClick={() => applyPeriod(periodDraft.from, periodDraft.to)}
+              className="bg-primary text-white rounded-none px-8 h-10 text-[0.65rem] font-bold uppercase tracking-widest"
             >
               Appliquer
             </Button>
@@ -314,65 +435,115 @@ export default function AdminOrdersPage() {
       <Dialog
         open={!!selected}
         onOpenChange={(open) => {
+          if (saving && !open) return;
           if (!open) {
             setSelected(null);
             document.body.style.pointerEvents = '';
           }
         }}
       >
-        <DialogContent className="rounded-none border-zay-border max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-headline italic">
+        <DialogContent
+          className={cn(
+            'rounded-none border-zay-border max-w-lg p-0 gap-0 overflow-hidden',
+            saving && '[&>button]:pointer-events-none [&>button]:opacity-0',
+          )}
+          onPointerDownOutside={(e) => {
+            if (saving) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (saving) e.preventDefault();
+          }}
+        >
+          <AdminBusyOverlay
+            show={saving || detailLoading}
+            label={saving ? 'Enregistrement…' : 'Chargement…'}
+          />
+          <DialogHeader className="px-5 py-4 border-b border-zay-border">
+            <DialogTitle className="text-xl font-headline italic">
               {selected?.number}
             </DialogTitle>
           </DialogHeader>
           {selected && (
-            <div className="space-y-4 pt-2">
-              <p className="text-xs text-zay-text-muted italic">
-                {selected.customerName} · {formatMoney(selected.total)}
+            <div className="max-h-[70vh] overflow-y-auto px-5 py-4 space-y-4">
+              <p className="text-xs text-zay-text-muted">
+                {selected.customerName}
+                {selected.phone ? ` · ${selected.phone}` : ''}
+                <span className="block mt-1 not-italic font-bold text-zay-text">
+                  {formatMoney(selected.total)}
+                </span>
               </p>
+              <p className="text-[0.65rem] text-zay-text-muted leading-relaxed">
+                {selected.addressLine}
+                <br />
+                {selected.postalCode} {selected.city}
+                {selected.country ? ` · ${selected.country}` : ''}
+              </p>
+
+              {selected.items && selected.items.length > 0 ? (
+                <div className="space-y-2 border border-zay-border p-3">
+                  {selected.items.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3">
+                      <div className="relative h-12 w-9 shrink-0 overflow-hidden bg-zay-gray">
+                        <MediaImage src={item.image} alt={item.name} fill className="object-cover" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[0.65rem] font-bold truncate">{item.name}</p>
+                        <p className="text-[0.55rem] uppercase tracking-widest text-zay-text-muted">
+                          {item.size} · {item.color} · ×{item.quantity}
+                        </p>
+                      </div>
+                      <p className="text-[0.65rem] font-bold tabular-nums">
+                        {formatMoney(item.lineTotal)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
               <div className="space-y-2">
-                <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Statut</Label>
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">Statut</Label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as ApiOrderStatus)}
-                  className="w-full h-12 border border-zay-border bg-white px-3 text-xs tracking-widest rounded-none"
+                  className="w-full h-10 border border-zay-border bg-white px-3 text-xs tracking-widest rounded-none"
                 >
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>{ORDER_STATUS_LABEL[s]}</option>
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">Transporteur</Label>
-                <Input value={carrier} onChange={(e) => setCarrier(e.target.value)} className="h-12 border-zay-border rounded-none" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">Transporteur</Label>
+                  <Input value={carrier} onChange={(e) => setCarrier(e.target.value)} className="h-10 border-zay-border rounded-none" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">N° suivi</Label>
+                  <Input value={trackingCode} onChange={(e) => setTrackingCode(e.target.value)} className="h-10 border-zay-border rounded-none" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">N° suivi</Label>
-                <Input value={trackingCode} onChange={(e) => setTrackingCode(e.target.value)} className="h-12 border-zay-border rounded-none" />
+              <div className="space-y-1">
+                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">URL suivi</Label>
+                <Input value={trackingUrl} onChange={(e) => setTrackingUrl(e.target.value)} className="h-10 border-zay-border rounded-none" />
               </div>
-              <div className="space-y-2">
-                <Label className="text-[0.65rem] font-bold uppercase tracking-widest text-zay-text-muted">URL suivi</Label>
-                <Input value={trackingUrl} onChange={(e) => setTrackingUrl(e.target.value)} className="h-12 border-zay-border rounded-none" />
-              </div>
-              <Button asChild variant="outline" className="w-full rounded-none border-zay-border text-[0.65rem] font-bold uppercase tracking-widest">
+              <Button asChild variant="outline" className="w-full rounded-none border-zay-border h-10 text-[0.65rem] font-bold uppercase tracking-widest">
                 <Link href={`/commande/suivi?id=${encodeURIComponent(selected.number)}`}>
                   Voir le suivi client
                 </Link>
               </Button>
             </div>
           )}
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="ghost" onClick={() => setSelected(null)} className="rounded-none text-[0.65rem] font-bold uppercase tracking-widest">
+          <DialogFooter className="border-t border-zay-border px-5 py-3 gap-2">
+            <Button type="button" variant="ghost" disabled={saving} onClick={() => setSelected(null)} className="rounded-none text-[0.65rem] font-bold uppercase tracking-widest">
               Annuler
             </Button>
             <Button
               type="button"
-              disabled={saving}
+              disabled={saving || detailLoading}
               onClick={() => void handleSaveStatus()}
-              className="bg-primary text-white rounded-none px-8 h-12 text-[0.65rem] font-bold uppercase tracking-widest"
+              className="bg-primary text-white rounded-none px-8 h-10 text-[0.65rem] font-bold uppercase tracking-widest"
             >
-              {saving ? <Loader2 className="animate-spin" /> : 'Enregistrer'}
+              Enregistrer
             </Button>
           </DialogFooter>
         </DialogContent>
