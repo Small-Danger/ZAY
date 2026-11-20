@@ -22,10 +22,18 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { useCartStore } from '@/store/useCartStore';
 import { useIsWishlisted, useWishlistStore } from '@/store/useWishlistStore';
 import { cn } from '@/lib/utils';
 import { notify } from '@/lib/notify';
+import { SIZE_GUIDE } from '@/lib/size-guide';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProduct } from '@/hooks/use-products';
 import type { UiProduct } from '@/lib/api';
@@ -37,6 +45,8 @@ import {
   findVariant,
 } from '@/lib/product-stock';
 
+type ColorOption = { name: string; hex: string };
+
 export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
   const { slug } = useParams();
   const idOrSlug = typeof slug === 'string' ? slug : slug?.[0];
@@ -47,10 +57,7 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
   const fullyOut = product ? isProductFullyOutOfStock(product) : false;
 
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<{
-    name: string;
-    hex: string;
-  } | null>(null);
+  const [selectedColor, setSelectedColor] = useState<ColorOption | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
@@ -75,23 +82,6 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
   }, [product, fullyOut, sizes.length, colors.length, selectedSize, selectedColor]);
 
   useEffect(() => {
-    if (!product || colors.length === 0) {
-      setSelectedColor(null);
-      return;
-    }
-    setSelectedColor((prev) => {
-      if (prev && getColorTotalStock(product, prev.name, selectedSize) > 0) {
-        return prev;
-      }
-      return (
-        colors.find(
-          (c) => getColorTotalStock(product, c.name, selectedSize) > 0,
-        ) || null
-      );
-    });
-  }, [product, colors, selectedSize]);
-
-  useEffect(() => {
     setActiveImage(product?.image ?? null);
   }, [product?.id, product?.image]);
 
@@ -108,6 +98,34 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
   }, [product?.id, sizes]);
 
   useEffect(() => {
+    if (!product || colors.length === 0) {
+      setSelectedColor(null);
+      return;
+    }
+    setSelectedColor((prev) => {
+      if (prev && getColorTotalStock(product, prev.name) > 0) return prev;
+      return (
+        colors.find((c) => getColorTotalStock(product, c.name) > 0) || null
+      );
+    });
+  }, [product?.id, colors]);
+
+  // Aligner la couleur quand la taille change (init + sélection) si le couple est à 0
+  useEffect(() => {
+    if (!product || !selectedSize || colors.length === 0) return;
+    setSelectedColor((prev) => {
+      if (prev && getVariantStock(product, selectedSize, prev.name) > 0) {
+        return prev;
+      }
+      return (
+        colors.find(
+          (c) => getVariantStock(product, selectedSize, c.name) > 0,
+        ) || prev
+      );
+    });
+  }, [product, selectedSize, colors]);
+
+  useEffect(() => {
     if (availableStock > 0 && quantity > availableStock) {
       setQuantity(availableStock);
     }
@@ -119,6 +137,38 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
   const { addItem } = useCartStore();
   const { toggleItem } = useWishlistStore();
   const wishlisted = useIsWishlisted(product?.id);
+
+  const handleSelectSize = (size: string) => {
+    if (!product) return;
+    setSelectedSize(size);
+    if (colors.length === 0) return;
+    if (
+      selectedColor &&
+      getVariantStock(product, size, selectedColor.name) > 0
+    ) {
+      return;
+    }
+    const nextColor = colors.find(
+      (c) => getVariantStock(product, size, c.name) > 0,
+    );
+    if (nextColor) setSelectedColor(nextColor);
+  };
+
+  const handleSelectColor = (color: ColorOption) => {
+    if (!product) return;
+    setSelectedColor(color);
+    if (sizes.length === 0) return;
+    if (
+      selectedSize &&
+      getVariantStock(product, selectedSize, color.name) > 0
+    ) {
+      return;
+    }
+    const nextSize = sizes.find(
+      (s) => getVariantStock(product, s, color.name) > 0,
+    );
+    if (nextSize) setSelectedSize(nextSize);
+  };
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -135,14 +185,11 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
       return;
     }
 
-    const variant =
-      findVariant(product.variants, selectedSize, selectedColor?.name) ??
-      product.variants.find(
-        (v) =>
-          (!selectedSize ||
-            v.size.toUpperCase() === selectedSize.toUpperCase()) &&
-          v.stock > 0,
-      );
+    const variant = findVariant(
+      product.variants,
+      selectedSize,
+      selectedColor?.name,
+    );
 
     const result = addItem({
       id: product.id,
@@ -293,36 +340,41 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
                   </div>
                   <div className="flex gap-4 flex-wrap">
                     {colors.map((color) => {
-                      const colorStock = getColorTotalStock(
-                        product,
-                        color.name,
-                        selectedSize,
+                      const totalStock = getColorTotalStock(product, color.name);
+                      const comboStock = selectedSize
+                        ? getVariantStock(product, selectedSize, color.name)
+                        : totalStock;
+                      const outEverywhere = totalStock <= 0;
+                      const attenuated = !outEverywhere && comboStock <= 0;
+                      const availableIn = sizes.filter(
+                        (s) => getVariantStock(product, s, color.name) > 0,
                       );
-                      const unavailable = colorStock <= 0;
+                      const title = outEverywhere
+                        ? `${color.name} — rupture`
+                        : attenuated
+                          ? `Disponible en ${availableIn.join(', ')}`
+                          : color.name;
                       return (
                         <button
                           key={color.name}
                           type="button"
-                          disabled={unavailable}
-                          onClick={() => setSelectedColor(color)}
-                          title={
-                            unavailable
-                              ? `${color.name} — rupture`
-                              : color.name
-                          }
+                          disabled={outEverywhere}
+                          onClick={() => handleSelectColor(color)}
+                          title={title}
                           className={cn(
                             'w-10 h-10 rounded-full border-2 p-1 transition-all duration-300 relative',
                             selectedColor?.name === color.name
                               ? 'border-primary scale-110'
                               : 'border-transparent',
-                            unavailable && 'opacity-40 cursor-not-allowed',
+                            outEverywhere && 'opacity-40 cursor-not-allowed',
+                            attenuated && 'opacity-45',
                           )}
                         >
                           <div
                             className="w-full h-full rounded-full"
                             style={{ backgroundColor: color.hex }}
                           />
-                          {unavailable && (
+                          {outEverywhere && (
                             <span className="absolute inset-0 flex items-center justify-center">
                               <span className="w-8 h-px bg-zay-text/70 rotate-45" />
                             </span>
@@ -340,37 +392,89 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
                     <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-zay-text">
                       Taille
                     </span>
-                    <button
-                      type="button"
-                      className="text-[9px] uppercase tracking-widest text-muted-foreground underline underline-offset-4 hover:text-primary transition-colors font-bold"
-                    >
-                      Guide des tailles
-                    </button>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button
+                          type="button"
+                          className="text-[9px] uppercase tracking-widest text-muted-foreground underline underline-offset-4 hover:text-primary transition-colors font-bold"
+                        >
+                          Guide des tailles
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-lg rounded-none">
+                        <DialogHeader>
+                          <DialogTitle className="font-headline text-xl">
+                            Guide des tailles
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-[0.7rem]">
+                            <thead>
+                              <tr className="border-b border-zay-border uppercase tracking-widest text-[0.55rem] text-muted-foreground">
+                                <th className="py-2 pr-3 font-bold">Taille</th>
+                                <th className="py-2 pr-3 font-bold">FR</th>
+                                <th className="py-2 pr-3 font-bold">Poitrine</th>
+                                <th className="py-2 pr-3 font-bold">Taille</th>
+                                <th className="py-2 font-bold">Hanches</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {SIZE_GUIDE.map((row) => (
+                                <tr
+                                  key={row.size}
+                                  className="border-b border-zay-border/60"
+                                >
+                                  <td className="py-2.5 pr-3 font-bold">{row.size}</td>
+                                  <td className="py-2.5 pr-3">{row.fr}</td>
+                                  <td className="py-2.5 pr-3">{row.bust} cm</td>
+                                  <td className="py-2.5 pr-3">{row.waist} cm</td>
+                                  <td className="py-2.5">{row.hips} cm</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {sizes.map((size) => {
-                      const sizeStock =
+                      const totalStock = getSizeTotalStock(product, size);
+                      const comboStock =
                         colors.length > 0 && selectedColor
                           ? getVariantStock(
                               product,
                               size,
                               selectedColor.name,
                             )
-                          : getSizeTotalStock(product, size);
-                      const unavailable = sizeStock <= 0;
+                          : totalStock;
+                      const outEverywhere = totalStock <= 0;
+                      const attenuated = !outEverywhere && comboStock <= 0;
+                      const availableIn = colors
+                        .filter(
+                          (c) => getVariantStock(product, size, c.name) > 0,
+                        )
+                        .map((c) => c.name);
+                      const title = outEverywhere
+                        ? `${size} — rupture`
+                        : attenuated
+                          ? `Disponible en ${availableIn.join(', ')}`
+                          : size;
                       return (
                         <button
                           key={size}
                           type="button"
-                          disabled={unavailable}
-                          onClick={() => setSelectedSize(size)}
+                          disabled={outEverywhere}
+                          onClick={() => handleSelectSize(size)}
+                          title={title}
                           className={cn(
                             'px-6 py-3 border text-[10px] font-bold tracking-widest transition-all duration-300 relative',
-                            selectedSize === size && !unavailable
+                            selectedSize === size
                               ? 'bg-zay-text text-white border-zay-text'
                               : 'bg-white text-zay-text border-zay-border hover:border-primary',
-                            unavailable &&
+                            outEverywhere &&
                               'opacity-40 cursor-not-allowed line-through hover:border-zay-border',
+                            attenuated && 'opacity-45',
                           )}
                         >
                           {size}

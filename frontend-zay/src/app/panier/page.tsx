@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { validatePromo } from '@/lib/api/promos';
 import { applyLiveStockToCart } from '@/lib/cart-stock';
 import { cn } from '@/lib/utils';
+import { notifyError } from '@/lib/notify';
 import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { checkoutPath } from '@/lib/auth/session';
 

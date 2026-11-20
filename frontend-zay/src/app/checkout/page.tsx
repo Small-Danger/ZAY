@@ -19,6 +19,7 @@ import { fetchMe } from '@/lib/api/auth';
 import { applyLiveStockToCart } from '@/lib/cart-stock';
 import { getAccessToken, LOGIN_THEN_CHECKOUT } from '@/lib/auth/session';
 import { cn } from '@/lib/utils';
+import { notify, notifyError } from '@/lib/notify';
 import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
@@ -432,7 +433,13 @@ export default function CheckoutPage() {
                       </div>
                       <div className="flex-grow py-1 space-y-1">
                         <h5 className="text-[0.65rem] font-light uppercase tracking-wider">{item.name}</h5>
-                        <p className="text-[0.6rem] text-zay-text-muted italic font-light">Taille: {item.size} • Qté: {item.quantity}</p>
+                        <p className="text-[0.6rem] text-zay-text-muted italic font-light">
+                          Taille : {item.size}
+                          {item.color && item.color.trim().toLowerCase() !== 'standard'
+                            ? ` • Couleur : ${item.color}`
+                            : ''}
+                          {' '}• Qté : {item.quantity}
+                        </p>
                         <p className="text-[0.65rem] font-light">€{(item.price * item.quantity).toFixed(2)}</p>
                       </div>
                     </div>
