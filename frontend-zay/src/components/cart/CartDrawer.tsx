@@ -68,7 +68,13 @@ export const CartDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                           <Trash2 size={12} />
                         </button>
                       </div>
-                      <p className="text-[0.6rem] text-zay-text-muted italic">Taille: {item.size} • Qté: {item.quantity}</p>
+                      <p className="text-[0.6rem] text-zay-text-muted italic">
+                        Taille : {item.size}
+                        {item.color && item.color.trim().toLowerCase() !== 'standard'
+                          ? ` • Couleur : ${item.color}`
+                          : ''}
+                        {' '}• Qté : {item.quantity}
+                      </p>
                       <p className="text-[0.65rem] font-bold mt-2">€{(item.price * item.quantity).toFixed(2)}</p>
                     </div>
                   </div>
