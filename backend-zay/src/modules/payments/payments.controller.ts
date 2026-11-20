@@ -44,12 +44,14 @@ export class PaymentsController {
       await this.orders.markPaidFromStripeSession(session.id);
     }
 
-    if (
-      event.type === 'checkout.session.expired' ||
-      event.type === 'checkout.session.async_payment_failed'
-    ) {
+    if (event.type === 'checkout.session.expired') {
       const session = event.data.object as { id: string };
       await this.orders.cancelUnpaidFromStripeSession(session.id);
+    }
+
+    if (event.type === 'checkout.session.async_payment_failed') {
+      const session = event.data.object as { id: string };
+      await this.orders.handleAsyncPaymentFailed(session.id);
     }
 
     return { received: true };

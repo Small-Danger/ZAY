@@ -54,6 +54,10 @@ class EnvironmentVariables {
   STRIPE_WEBHOOK_SECRET?: string;
 
   @IsString()
+  @IsOptional()
+  STRIPE_KLARNA_PAYMENT_METHOD_CONFIGURATION?: string;
+
+  @IsString()
   @IsNotEmpty()
   REDIS_URL!: string;
 

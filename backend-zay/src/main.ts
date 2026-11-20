@@ -13,6 +13,10 @@ async function bootstrap() {
   });
   const config = app.get(ConfigService);
 
+  // Railway place un reverse-proxy devant l’app : sans trust proxy,
+  // le throttler voit la même IP (celle du proxy) pour tous les clients.
+  app.set('trust proxy', 1);
+
   // Fichiers uploadés accessibles hors préfixe /api
   // ex. http://localhost:4000/uploads/categories/xxx.png
   app.useStaticAssets(join(process.cwd(), 'uploads'), {

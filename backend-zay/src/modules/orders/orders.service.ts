@@ -2,9 +2,10 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, Prisma, Role } from '@prisma/client';
+import { OrderStatus, PaymentMethod, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import type { AuthUser } from '../auth/decorators/current-user.decorator';
@@ -19,6 +20,9 @@ import {
   resolveProductVariant,
 } from './variant-match';
 
+/** Délai avant annulation auto des PENDING non payées (doit rester < expires_at Stripe 30 min). */
+export const PENDING_TIMEOUT_MINUTES = 35;
+
 const orderInclude = {
   items: true,
   user: {
@@ -28,6 +32,8 @@ const orderInclude = {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly promosService: PromosService,
@@ -150,77 +156,10 @@ export class OrdersService {
     const number = await this.nextOrderNumber();
 
     const order = await this.prisma.$transaction(async (tx) => {
-      for (const line of lines) {
-        const product = await tx.product.findUnique({
-          where: { id: line.productId },
-          include: { variants: true },
-        });
-        if (!product) {
-          throw new BadRequestException(
-            `Ce produit n’est plus disponible`,
-          );
-        }
-
-        if (product.variants.length > 0) {
-          if (!line.variantId) {
-            throw new BadRequestException(
-              `Variante indisponible pour ${product.name}`,
-            );
-          }
-
-          const updated = await tx.productVariant.update({
-            where: { id: line.variantId },
-            data: { stock: { decrement: line.quantity } },
-          });
-          if (updated.stock < 0) {
-            throw new BadRequestException(
-              `Stock insuffisant pour ${product.name} (${line.size}/${line.color})`,
-            );
-          }
-
-          const variants = await tx.productVariant.findMany({
-            where: { productId: product.id },
-          });
-          const stock = variants.reduce((s, v) => s + v.stock, 0);
-          await tx.product.update({
-            where: { id: product.id },
-            data: { stock, status: computeProductStatus(stock) },
-          });
-        } else {
-          const updated = await tx.product.update({
-            where: { id: product.id },
-            data: {
-              stock: { decrement: line.quantity },
-            },
-          });
-          if (updated.stock < 0) {
-            throw new BadRequestException(
-              `Stock insuffisant pour ${product.name}`,
-            );
-          }
-          await tx.product.update({
-            where: { id: product.id },
-            data: { status: computeProductStatus(updated.stock) },
-          });
-        }
-      }
+      await this.decrementStockForLines(tx, lines);
 
       if (appliedPromoCode) {
-        const consumed = await tx.promoCode.updateMany({
-          where: {
-            code: appliedPromoCode,
-            active: true,
-            ...(promoUsageLimit != null
-              ? { usageCount: { lt: promoUsageLimit } }
-              : {}),
-          },
-          data: { usageCount: { increment: 1 } },
-        });
-        if (consumed.count !== 1) {
-          throw new BadRequestException(
-            'Ce code promo a atteint sa limite d’utilisation',
-          );
-        }
+        await this.consumePromoCode(tx, appliedPromoCode, promoUsageLimit);
       }
 
       return tx.order.create({
@@ -292,8 +231,8 @@ export class OrdersService {
   }
 
   async markPaidFromStripeSession(sessionId: string) {
-    const { paid, orderId } = await this.stripe.retrievePaidSession(sessionId);
-    if (!paid) {
+    const session = await this.stripe.retrievePaidSession(sessionId);
+    if (!session.paid) {
       throw new BadRequestException('Session Stripe non payée');
     }
 
@@ -301,28 +240,117 @@ export class OrdersService {
       where: {
         OR: [
           { stripeSessionId: sessionId },
-          ...(orderId ? [{ id: orderId }] : []),
+          ...(session.orderId ? [{ id: session.orderId }] : []),
         ],
       },
       include: orderInclude,
     });
 
     if (!order) {
-      throw new NotFoundException('Commande introuvable pour cette session Stripe');
+      throw new NotFoundException(
+        'Commande introuvable pour cette session Stripe',
+      );
     }
 
-    if (order.status !== OrderStatus.PENDING) {
-      return order;
+    const expectedCents = Math.round(Number(order.total) * 100);
+    if (
+      session.amountTotal !== expectedCents ||
+      (session.currency ?? '').toLowerCase() !== 'eur'
+    ) {
+      this.logger.error(
+        `Montant Stripe invalide pour ${order.number}: reçu ${session.amountTotal} ${session.currency}, attendu ${expectedCents} eur`,
+      );
+      throw new BadRequestException(
+        'Montant ou devise Stripe incohérent avec la commande',
+      );
     }
 
-    return this.prisma.order.update({
-      where: { id: order.id },
-      data: {
-        status: OrderStatus.PAID,
-        stripeSessionId: sessionId,
-      },
-      include: orderInclude,
-    });
+    const paymentMethod =
+      session.paymentMethodType === 'klarna'
+        ? PaymentMethod.KLARNA
+        : PaymentMethod.CARD;
+
+    if (order.status === OrderStatus.PENDING) {
+      return this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.PAID,
+          stripeSessionId: sessionId,
+          paymentMethod,
+        },
+        include: orderInclude,
+      });
+    }
+
+    if (order.status === OrderStatus.CANCELLED) {
+      return this.reinstateCancelledPaidOrder(order, sessionId, paymentMethod, session.paymentIntentId);
+    }
+
+    return order;
+  }
+
+  private async reinstateCancelledPaidOrder(
+    order: Prisma.OrderGetPayload<{ include: typeof orderInclude }>,
+    sessionId: string,
+    paymentMethod: PaymentMethod,
+    paymentIntentId: string | null,
+  ) {
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const lines = order.items.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          name: item.name,
+          size: item.size,
+          color: item.color,
+          quantity: item.quantity,
+        }));
+        await this.decrementStockForOrderItems(tx, lines);
+
+        if (order.promoCode) {
+          const promo = await tx.promoCode.findFirst({
+            where: { code: order.promoCode },
+          });
+          await this.consumePromoCode(
+            tx,
+            order.promoCode,
+            promo?.usageLimit ?? null,
+          );
+        }
+
+        return tx.order.update({
+          where: { id: order.id },
+          data: {
+            status: OrderStatus.PAID,
+            stripeSessionId: sessionId,
+            paymentMethod,
+          },
+          include: orderInclude,
+        });
+      });
+      await this.redis.invalidateCatalog();
+      return updated;
+    } catch (err) {
+      if (paymentIntentId) {
+        await this.stripe.refundPayment(paymentIntentId);
+      }
+      const refunded = await this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.REFUNDED,
+          stripeSessionId: sessionId,
+          paymentMethod,
+        },
+        include: orderInclude,
+      });
+      this.logger.error(
+        `Commande ${order.number}: paiement Stripe reçu mais stock insuffisant — remboursement ${Number(order.total).toFixed(2)} EUR`,
+      );
+      if (err instanceof BadRequestException) {
+        this.logger.error(err.message);
+      }
+      return refunded;
+    }
   }
 
   async findMine(userId: string) {
@@ -498,6 +526,40 @@ export class OrdersService {
     return this.cancelUnpaidOrderById(order.id);
   }
 
+  /** Klarna async échoué : PENDING → annulation ; PAID → CANCELLED + restock + promo. */
+  async handleAsyncPaymentFailed(sessionId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { stripeSessionId: sessionId },
+      include: { items: true },
+    });
+    if (!order) return null;
+
+    if (order.status === OrderStatus.PENDING) {
+      return this.cancelUnpaidOrderById(order.id);
+    }
+
+    if (order.status !== OrderStatus.PAID) {
+      return order;
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await this.restockItems(tx, order.items);
+      if (order.promoCode) {
+        await tx.promoCode.updateMany({
+          where: { code: order.promoCode, usageCount: { gt: 0 } },
+          data: { usageCount: { decrement: 1 } },
+        });
+      }
+      return tx.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.CANCELLED },
+        include: orderInclude,
+      });
+    });
+    await this.redis.invalidateCatalog();
+    return updated;
+  }
+
   private shouldRestock(from: OrderStatus, to: OrderStatus): boolean {
     if (
       from === OrderStatus.CANCELLED ||
@@ -513,7 +575,9 @@ export class OrdersService {
   }
 
   private async releaseStaleUnpaidPending() {
-    const cutoff = new Date(Date.now() - 45 * 60 * 1000);
+    const cutoff = new Date(
+      Date.now() - PENDING_TIMEOUT_MINUTES * 60 * 1000,
+    );
     const stale = await this.prisma.order.findMany({
       where: { status: OrderStatus.PENDING, createdAt: { lt: cutoff } },
       select: { id: true },
@@ -534,25 +598,51 @@ export class OrdersService {
   }
 
   private async cancelUnpaidOrderById(orderId: string) {
+    const current = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+    if (!current || current.status !== OrderStatus.PENDING) {
+      return current;
+    }
+
+    if (current.stripeSessionId) {
+      try {
+        const session = await this.stripe.retrievePaidSession(
+          current.stripeSessionId,
+        );
+        if (session.paid) {
+          return this.markPaidFromStripeSession(current.stripeSessionId);
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Lecture session Stripe avant annulation ${current.number}: ${
+            err instanceof Error ? err.message : 'erreur'
+          }`,
+        );
+      }
+      await this.stripe.expireSession(current.stripeSessionId);
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.order.findUnique({
+      const locked = await tx.order.findUnique({
         where: { id: orderId },
         include: { items: true },
       });
-      if (!current || current.status !== OrderStatus.PENDING) {
-        return { order: current, restocked: false };
+      if (!locked || locked.status !== OrderStatus.PENDING) {
+        return { order: locked, restocked: false };
       }
 
-      await this.restockItems(tx, current.items);
-      if (current.promoCode) {
+      await this.restockItems(tx, locked.items);
+      if (locked.promoCode) {
         await tx.promoCode.updateMany({
-          where: { code: current.promoCode, usageCount: { gt: 0 } },
+          where: { code: locked.promoCode, usageCount: { gt: 0 } },
           data: { usageCount: { decrement: 1 } },
         });
       }
 
       const order = await tx.order.update({
-        where: { id: current.id },
+        where: { id: locked.id },
         data: { status: OrderStatus.CANCELLED },
         include: orderInclude,
       });
@@ -564,6 +654,105 @@ export class OrdersService {
     }
 
     return result.order;
+  }
+
+  private async decrementStockForLines(
+    tx: Prisma.TransactionClient,
+    lines: {
+      productId: string;
+      variantId: string | null;
+      name: string;
+      size: string;
+      color: string;
+      quantity: number;
+    }[],
+  ) {
+    for (const line of lines) {
+      const product = await tx.product.findUnique({
+        where: { id: line.productId },
+        include: { variants: true },
+      });
+      if (!product) {
+        throw new BadRequestException(`Ce produit n’est plus disponible`);
+      }
+
+      if (product.variants.length > 0) {
+        if (!line.variantId) {
+          throw new BadRequestException(
+            `Variante indisponible pour ${product.name}`,
+          );
+        }
+
+        const updated = await tx.productVariant.update({
+          where: { id: line.variantId },
+          data: { stock: { decrement: line.quantity } },
+        });
+        if (updated.stock < 0) {
+          throw new BadRequestException(
+            `Stock insuffisant pour ${product.name} (${line.size}/${line.color})`,
+          );
+        }
+
+        const variants = await tx.productVariant.findMany({
+          where: { productId: product.id },
+        });
+        const stock = variants.reduce((s, v) => s + v.stock, 0);
+        await tx.product.update({
+          where: { id: product.id },
+          data: { stock, status: computeProductStatus(stock) },
+        });
+      } else {
+        const updated = await tx.product.update({
+          where: { id: product.id },
+          data: {
+            stock: { decrement: line.quantity },
+          },
+        });
+        if (updated.stock < 0) {
+          throw new BadRequestException(
+            `Stock insuffisant pour ${product.name}`,
+          );
+        }
+        await tx.product.update({
+          where: { id: product.id },
+          data: { status: computeProductStatus(updated.stock) },
+        });
+      }
+    }
+  }
+
+  private async decrementStockForOrderItems(
+    tx: Prisma.TransactionClient,
+    items: {
+      productId: string;
+      variantId: string | null;
+      name: string;
+      size: string;
+      color: string;
+      quantity: number;
+    }[],
+  ) {
+    await this.decrementStockForLines(tx, items);
+  }
+
+  private async consumePromoCode(
+    tx: Prisma.TransactionClient,
+    code: string,
+    usageLimit: number | null,
+  ) {
+    const consumed = await tx.promoCode.updateMany({
+      where: {
+        code,
+        active: true,
+        ...(usageLimit != null ? { usageCount: { lt: usageLimit } } : {}),
+      },
+      data: { usageCount: { increment: 1 } },
+    });
+    if (consumed.count !== 1) {
+      throw new BadRequestException(
+        'Ce code promo a atteint sa limite d’utilisation',
+      );
+    }
   }
 
   private async restockItems(
