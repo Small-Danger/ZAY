@@ -15,6 +15,15 @@ function isoCountry(raw: string | undefined): string {
   return 'FR';
 }
 
+export type PaidSessionInfo = {
+  paid: boolean;
+  orderId: string | null;
+  amountTotal: number | null;
+  currency: string | null;
+  paymentIntentId: string | null;
+  paymentMethodType: string | null;
+};
+
 @Injectable()
 export class StripeService {
   private readonly logger = new Logger(StripeService.name);
@@ -24,9 +33,8 @@ export class StripeService {
     const key = (this.config.get<string>('app.stripeSecretKey') ?? '').trim();
     this.client = key ? new Stripe(key) : null;
     if (key) {
-      this.logger.log(
-        `Stripe test mode prêt (${key.startsWith('sk_test_') ? 'sandbox' : 'live'})`,
-      );
+      const mode = key.startsWith('sk_live_') ? 'LIVE' : 'TEST';
+      this.logger.log(`Stripe mode ${mode}`);
     }
   }
 
@@ -65,12 +73,17 @@ export class StripeService {
 
     const country = isoCountry(params.country);
     const useKlarna = params.paymentMethod === PaymentMethod.KLARNA;
+    const klarnaPmc = (
+      this.config.get<string>('app.stripeKlarnaPaymentMethodConfiguration') ??
+      ''
+    ).trim();
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
       locale: 'fr',
       customer_email: params.customerEmail,
       client_reference_id: params.orderId,
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       metadata: {
         orderId: params.orderId,
         orderNumber: params.orderNumber,
@@ -89,10 +102,6 @@ export class StripeService {
         },
       ],
       billing_address_collection: 'required',
-      shipping_address_collection: {
-        allowed_countries: [country as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry],
-      },
-      phone_number_collection: { enabled: true },
       payment_intent_data: {
         shipping: {
           name: params.customerName,
@@ -110,11 +119,11 @@ export class StripeService {
     };
 
     // Carte : on force la CB.
-    // Klarna : on NE passe PAS payment_method_types — Stripe utilise
-    // la config Dashboard (où Klarna est Activé). L’ancien paramètre
-    // `['klarna']` est refusé en EUR sur ce compte.
+    // Klarna : config Dashboard, ou payment_method_configuration si défini.
     if (!useKlarna) {
       sessionParams.payment_method_types = ['card'];
+    } else if (klarnaPmc) {
+      sessionParams.payment_method_configuration = klarnaPmc;
     }
 
     try {
@@ -146,16 +155,55 @@ export class StripeService {
     }
   }
 
-  async retrievePaidSession(sessionId: string): Promise<{
-    paid: boolean;
-    orderId: string | null;
-  }> {
-    const session = await this.stripe().checkout.sessions.retrieve(sessionId);
+  async expireSession(sessionId: string): Promise<void> {
+    try {
+      await this.stripe().checkout.sessions.expire(sessionId);
+    } catch (err) {
+      const detail =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'expire failed';
+      this.logger.warn(
+        `Impossible d’expirer la session Stripe ${sessionId}: ${detail}`,
+      );
+    }
+  }
+
+  async retrievePaidSession(sessionId: string): Promise<PaidSessionInfo> {
+    const session = await this.stripe().checkout.sessions.retrieve(sessionId, {
+      expand: ['payment_intent.payment_method'],
+    });
     const paid =
-      session.payment_status === 'paid' || session.status === 'complete';
+      session.payment_status === 'paid' ||
+      session.payment_status === 'no_payment_required';
     const orderId =
       session.metadata?.orderId || session.client_reference_id || null;
-    return { paid, orderId };
+
+    let paymentIntentId: string | null = null;
+    let paymentMethodType: string | null = null;
+    const pi = session.payment_intent;
+    if (typeof pi === 'string') {
+      paymentIntentId = pi;
+    } else if (pi && typeof pi === 'object') {
+      paymentIntentId = pi.id;
+      const pm = pi.payment_method;
+      if (typeof pm === 'object' && pm && 'type' in pm && pm.type) {
+        paymentMethodType = String(pm.type);
+      }
+    }
+
+    return {
+      paid,
+      orderId,
+      amountTotal: session.amount_total ?? null,
+      currency: session.currency ?? null,
+      paymentIntentId,
+      paymentMethodType,
+    };
+  }
+
+  async refundPayment(paymentIntentId: string): Promise<void> {
+    await this.stripe().refunds.create({ payment_intent: paymentIntentId });
   }
 
   constructWebhookEvent(rawBody: Buffer, signature: string): Stripe.Event {

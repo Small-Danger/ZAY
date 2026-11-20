@@ -47,6 +47,19 @@ export default registerAs('app', () => {
     corsOrigins.push(frontendUrl);
   }
 
+  const stripeSecretKey = requireProdSecret(
+    'STRIPE_SECRET_KEY',
+    process.env.STRIPE_SECRET_KEY,
+  )
+    .replace(/[\r\n]/g, '')
+    .replace(/^["']|["']$/g, '');
+  const stripeWebhookSecret = requireProdSecret(
+    'STRIPE_WEBHOOK_SECRET',
+    process.env.STRIPE_WEBHOOK_SECRET,
+  )
+    .trim()
+    .replace(/[\r\n]/g, '');
+
   return {
     port: Number(process.env.PORT ?? 4000),
     nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -57,13 +70,11 @@ export default registerAs('app', () => {
     adminEmail: process.env.ADMIN_EMAIL ?? 'admin@zay.local',
     adminPassword: adminPassword || 'Admin123!',
     frontendUrl,
-    stripeSecretKey: (process.env.STRIPE_SECRET_KEY ?? '')
-      .trim()
-      .replace(/[\r\n]/g, '')
-      .replace(/^["']|["']$/g, ''),
-    stripeWebhookSecret: (process.env.STRIPE_WEBHOOK_SECRET ?? '')
-      .trim()
-      .replace(/[\r\n]/g, ''),
+    stripeSecretKey,
+    stripeWebhookSecret,
+    stripeKlarnaPaymentMethodConfiguration: (
+      process.env.STRIPE_KLARNA_PAYMENT_METHOD_CONFIGURATION ?? ''
+    ).trim(),
     redisUrl: (() => {
       const url = process.env.REDIS_URL?.trim() || '';
       if (isProd && !url) {
