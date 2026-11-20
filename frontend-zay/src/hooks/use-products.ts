@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
-import { fetchProduct, fetchProducts, type ProductListParams, type UiProduct } from '@/lib/api/products';
+import { fetchProduct, fetchProducts, type ProductListParams } from '@/lib/api/products';
+import type { UiProduct } from '@/lib/api/types';
 import { memoryGet, memorySet } from '@/lib/memory-cache';
 
 type AsyncState<T> = {

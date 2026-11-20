@@ -19,6 +19,7 @@ import { fetchMe } from '@/lib/api/auth';
 import { applyLiveStockToCart } from '@/lib/cart-stock';
 import { getAccessToken, LOGIN_THEN_CHECKOUT } from '@/lib/auth/session';
 import { cn } from '@/lib/utils';
+import { notify, notifyError } from '@/lib/notify';
 import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
