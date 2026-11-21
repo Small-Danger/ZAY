@@ -1,6 +1,14 @@
 export { API_BASE_URL, API_ORIGIN, resolveMediaUrl } from './config';
 export { apiFetch, apiFetchForm } from './client';
-export { login, register, fetchMe, updateProfile, changePassword } from './auth';
+export {
+  login,
+  register,
+  fetchMe,
+  updateProfile,
+  changePassword,
+  forgotPassword,
+  resetPassword,
+} from './auth';
 export type {
   AuthResponse,
   LoginPayload,

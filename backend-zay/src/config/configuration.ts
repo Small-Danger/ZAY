@@ -84,5 +84,10 @@ export default registerAs('app', () => {
       }
       return url || 'redis://127.0.0.1:56379';
     })(),
+    resendApiKey: process.env.RESEND_API_KEY?.trim() || '',
+    mailFrom:
+      process.env.MAIL_FROM?.trim() ||
+      'ZAY Atelier <commandes@zaydress.com>',
+    adminNotifyEmail: process.env.ADMIN_NOTIFY_EMAIL?.trim() || '',
   };
 });

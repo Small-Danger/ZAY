@@ -22,6 +22,7 @@ import { AddressesModule } from './modules/addresses/addresses.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { StripeModule } from './modules/payments/stripe.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { StripeModule } from './modules/payments/stripe.module';
     AdminModule,
     StripeModule,
     PaymentsModule,
+    MailModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
