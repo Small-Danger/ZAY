@@ -1,4 +1,8 @@
-import { Controller, Get } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { HealthService } from './health.service';
 
@@ -13,7 +17,11 @@ export class HealthController {
   }
 
   @Get('health')
-  getHealth() {
-    return this.healthService.getHealth();
+  async getHealth() {
+    const health = await this.healthService.getPublicHealth();
+    if (health.status !== 'ok') {
+      throw new ServiceUnavailableException(health);
+    }
+    return health;
   }
 }

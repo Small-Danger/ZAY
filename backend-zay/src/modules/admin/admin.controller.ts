@@ -8,13 +8,22 @@ import {
   Query,
 } from '@nestjs/common';
 import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { HealthService } from '../health/health.service';
 import { AdminService } from './admin.service';
 import { UpdateStoreSettingsDto } from './dto/store-settings.dto';
 
 @Controller('admin')
 @AdminOnly()
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly healthService: HealthService,
+  ) {}
+
+  @Get('health')
+  getHealth() {
+    return this.healthService.getDetailedHealth();
+  }
 
   @Get('stats')
   getStats() {
