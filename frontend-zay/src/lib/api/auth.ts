@@ -76,3 +76,22 @@ export async function changePassword(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export async function forgotPassword(payload: {
+  email: string;
+}): Promise<{ ok: boolean }> {
+  return apiFetch('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resetPassword(payload: {
+  token: string;
+  newPassword: string;
+}): Promise<{ ok: boolean }> {
+  return apiFetch('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

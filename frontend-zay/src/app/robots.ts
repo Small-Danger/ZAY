@@ -17,6 +17,8 @@ export default function robots(): MetadataRoute.Robots {
         '/commande',
         '/commande/',
         '/connexion',
+        '/mot-de-passe-oublie',
+        '/reinitialiser-mot-de-passe',
       ],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,

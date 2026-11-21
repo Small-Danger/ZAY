@@ -32,11 +32,13 @@ export default function ConnexionPage() {
     lastName: ''
   });
 
+  const [resetOk, setResetOk] = useState(false);
+
   useEffect(() => {
-    const next = safeInternalPath(
-      new URLSearchParams(window.location.search).get('next'),
-    );
+    const params = new URLSearchParams(window.location.search);
+    const next = safeInternalPath(params.get('next'));
     setFromCheckout(next === '/checkout');
+    setResetOk(params.get('reset') === '1');
   }, []);
 
   const redirectAfterAuth = (role: string) => {
@@ -109,6 +111,11 @@ export default function ConnexionPage() {
           <p className="text-center text-[0.65rem] tracking-widest uppercase text-zay-text-muted italic mb-8">
             Connexion ou inscription
           </p>
+          {resetOk && (
+            <p className="text-[0.7rem] text-zay-text-muted italic font-light text-center mb-8">
+              Mot de passe mis à jour. Vous pouvez vous connecter.
+            </p>
+          )}
           {fromCheckout && (
             <p className="text-[0.7rem] text-zay-text-muted italic font-light text-center mb-8">
               Connectez-vous ou créez un compte pour payer. Votre panier est conservé.
@@ -136,7 +143,7 @@ export default function ConnexionPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Label className="text-[0.65rem] tracking-[0.1em] uppercase font-light text-zay-text-muted">Mot de passe</Label>
-                    <Link href="/contact" className="text-[0.6rem] text-primary hover:underline uppercase tracking-tighter font-light">Oublié ?</Link>
+                    <Link href="/mot-de-passe-oublie" className="text-[0.6rem] text-primary hover:underline uppercase tracking-tighter font-light">Oublié ?</Link>
                   </div>
                   <div className="relative">
                     <Input 
