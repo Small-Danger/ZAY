@@ -4,6 +4,7 @@ export const metadata: Metadata = {
   title: 'À propos',
   description:
     'ZAY Atelier — maison de mode féminine, élégance contemporaine et pièces raffinées.',
+  alternates: { canonical: '/about' },
 };
 
 export default function AboutLayout({

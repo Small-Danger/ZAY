@@ -47,6 +47,18 @@ import { cn } from '@/lib/utils';
 import { formatEUR } from '@/lib/format';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const normalizeLabel = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim();
+
+const sameCategory = (
+  a: string | null | undefined,
+  b: string | null | undefined,
+) => !!a && !!b && normalizeLabel(a) === normalizeLabel(b);
+
 const RingIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="12" cy="15" r="6" />
@@ -150,7 +162,7 @@ function CataloguePageInner({
   useEffect(() => {
     const cat = searchParams.get('category');
     if (cat?.trim()) {
-      setSelectedCategory(cat.trim().toUpperCase());
+      setSelectedCategory(cat.trim());
       setSelectedSubCategory(null);
     }
     const n = (searchParams.get('new') || '').toLowerCase();
@@ -168,7 +180,8 @@ function CataloguePageInner({
         p.name.toLowerCase().includes(q) ||
         p.category.toLowerCase().includes(q) ||
         (p.subcategoryName || '').toLowerCase().includes(q);
-      const matchCategory = !selectedCategory || p.category.toUpperCase() === selectedCategory;
+      const matchCategory =
+        !selectedCategory || sameCategory(p.category, selectedCategory);
       const matchSubCategory =
         !selectedSubCategory ||
         (p.subcategoryName || '').toLowerCase() === selectedSubCategory.toLowerCase();
@@ -239,7 +252,7 @@ function CataloguePageInner({
   };
 
   const selectCategoryBubble = (label: string) => {
-    const next = selectedCategory === label ? null : label;
+    const next = sameCategory(selectedCategory, label) ? null : label;
     setSelectedCategory(next);
     setSelectedSubCategory(null);
   };
@@ -260,17 +273,17 @@ function CataloguePageInner({
               <div key={group.label} className="space-y-3">
                 <button 
                   type="button"
-                  onClick={() => setSelectedCategory(selectedCategory === group.label ? null : group.label)}
+                  onClick={() => setSelectedCategory(sameCategory(selectedCategory, group.label) ? null : group.label)}
                   className={cn(
                     "flex items-center gap-2 text-[11px] font-bold tracking-widest uppercase transition-all",
-                    selectedCategory === group.label ? "text-primary" : "text-zay-text"
+                    sameCategory(selectedCategory, group.label) ? "text-primary" : "text-zay-text"
                   )}
                 >
                   <div className={cn(
                     "w-3.5 h-3.5 border border-zay-border flex items-center justify-center transition-colors",
-                    selectedCategory === group.label && "bg-primary border-primary"
+                    sameCategory(selectedCategory, group.label) && "bg-primary border-primary"
                   )}>
-                    {selectedCategory === group.label && <X size={10} className="text-white" />}
+                    {sameCategory(selectedCategory, group.label) && <X size={10} className="text-white" />}
                   </div>
                   {group.label}
                 </button>
@@ -476,7 +489,7 @@ function CataloguePageInner({
           <div className="flex gap-4 md:gap-8 overflow-x-auto md:overflow-visible no-scrollbar md:justify-between -mx-2 px-2 md:mx-0 md:px-0">
             {OCCASIONS.map((occ) => {
               const active =
-                selectedCategory === occ.category &&
+                sameCategory(selectedCategory, occ.category) &&
                 (occ.sub ? selectedSubCategory === occ.sub : !selectedSubCategory);
               return (
               <button 
@@ -520,7 +533,7 @@ function CataloguePageInner({
                 <div
                   className={cn(
                     "relative w-20 h-20 md:w-28 md:h-28 lg:w-36 lg:h-36 rounded-full overflow-hidden mb-3 border shadow-sm transition-all",
-                    selectedCategory === cat.label
+                    sameCategory(selectedCategory, cat.label)
                       ? "border-primary ring-2 ring-primary/30"
                       : "border-gray-50"
                   )}
@@ -530,7 +543,7 @@ function CataloguePageInner({
                 <span
                   className={cn(
                     "text-[0.55rem] md:text-[0.7rem] font-black tracking-[0.12em] uppercase whitespace-nowrap max-w-[120px] truncate",
-                    selectedCategory === cat.label ? "text-primary" : "text-black"
+                    sameCategory(selectedCategory, cat.label) ? "text-primary" : "text-black"
                   )}
                 >
                   {cat.label}
@@ -554,7 +567,7 @@ function CataloguePageInner({
               >
                 <span className={cn(
                   "text-xs md:text-sm uppercase tracking-[0.15em] font-light",
-                  selectedCategory === group.label && "text-primary font-bold"
+                  sameCategory(selectedCategory, group.label) && "text-primary font-bold"
                 )}>
                   {group.label}
                 </span>
@@ -694,7 +707,7 @@ function CataloguePageInner({
                     <div
                       className={cn(
                         "relative w-20 h-20 rounded-full overflow-hidden mb-3 border shadow-sm transition-all",
-                        selectedCategory === cat.label
+                        sameCategory(selectedCategory, cat.label)
                           ? "border-primary ring-2 ring-primary/30"
                           : "border-gray-50"
                       )}
@@ -709,7 +722,7 @@ function CataloguePageInner({
                     <span
                       className={cn(
                         "text-[0.55rem] font-black tracking-[0.12em] uppercase whitespace-nowrap max-w-[96px] truncate",
-                        selectedCategory === cat.label ? "text-primary" : "text-black"
+                        sameCategory(selectedCategory, cat.label) ? "text-primary" : "text-black"
                       )}
                     >
                       {cat.label}
@@ -759,13 +772,30 @@ function CataloguePageInner({
                   
                   {filteredProducts.length === 0 && (
                     <div className="col-span-full py-40 text-center bg-zay-main flex flex-col items-center justify-center space-y-6">
-                      <p className="text-zay-text-muted italic tracking-widest text-base font-light">Aucune pièce ne correspond à votre sélection.</p>
-                      <Button 
-                        onClick={resetFilters} 
-                        className="bg-zay-text text-white rounded-none px-10 py-6 text-[10px] tracking-widest font-bold uppercase"
-                      >
-                        Réinitialiser les filtres
-                      </Button>
+                      <p className="text-zay-text-muted italic tracking-widest text-base font-light">
+                        {selectedCategory
+                          ? 'Aucun produit dans cette catégorie pour le moment'
+                          : 'Aucune pièce ne correspond à votre sélection.'}
+                      </p>
+                      {selectedCategory ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCategory(null);
+                            setSelectedSubCategory(null);
+                          }}
+                          className="text-[0.65rem] uppercase tracking-[0.25em] font-bold text-primary underline underline-offset-4"
+                        >
+                          Voir tout
+                        </button>
+                      ) : (
+                        <Button
+                          onClick={resetFilters}
+                          className="bg-zay-text text-white rounded-none px-10 py-6 text-[10px] tracking-widest font-bold uppercase"
+                        >
+                          Réinitialiser les filtres
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

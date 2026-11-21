@@ -15,7 +15,10 @@ export type ApiCategory = {
 };
 
 export async function fetchCategories(): Promise<ApiCategory[]> {
-  return apiFetch<ApiCategory[]>('/categories');
+  return apiFetch<ApiCategory[]>('/categories', {
+    cache: 'force-cache',
+    next: { revalidate: 60 },
+  } as RequestInit);
 }
 
 export async function createCategory(

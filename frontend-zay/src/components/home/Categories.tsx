@@ -7,6 +7,7 @@ import { Sparkles, GraduationCap, Moon, Palmtree } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCategories } from '@/hooks/use-categories';
 import { resolveMediaUrl } from '@/lib/api';
+import type { ApiCategory } from '@/lib/api/categories';
 import { MediaImage } from '@/components/ui/media-image';
 import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 
@@ -43,8 +44,12 @@ const FALLBACK_IMAGES: Record<string, string> = {
   ACCESSOIRES: '/accessoires.png',
 };
 
-export const Categories = () => {
-  const { data: categories, loading } = useCategories();
+export const Categories = ({
+  initialCategories,
+}: {
+  initialCategories?: ApiCategory[];
+}) => {
+  const { data: categories, loading } = useCategories(initialCategories);
 
   const displayCategories =
     categories.length > 0

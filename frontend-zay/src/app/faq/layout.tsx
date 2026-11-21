@@ -4,6 +4,7 @@ export const metadata: Metadata = {
   title: 'FAQ',
   description:
     'Livraison, retours et questions fréquentes — ZAY Atelier.',
+  alternates: { canonical: '/faq' },
 };
 
 export default function FaqLayout({

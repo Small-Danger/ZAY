@@ -41,6 +41,8 @@ export type ApiProduct = {
   category?: ApiCategoryRef;
   subcategory?: ApiSubcategoryRef | null;
   variants?: ApiProductVariant[];
+  updatedAt?: string;
+  createdAt?: string;
 };
 
 /** Forme attendue par les composants UI existants (ProductCard, catalogue, PDP). */
@@ -68,4 +70,5 @@ export type UiProduct = {
   sizes: string[];
   colors: { name: string; hex: string }[];
   variants: ApiProductVariant[];
+  updatedAt?: string;
 };
