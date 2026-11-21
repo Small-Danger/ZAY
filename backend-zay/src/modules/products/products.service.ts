@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
@@ -289,20 +290,23 @@ export class ProductsService {
           : { connect: { id: subcategoryId } },
     };
 
-    const syncingVariants = dto.variants !== undefined;
+    const clearingVariants =
+      dto.variants !== undefined && dto.variants.length === 0;
+    const syncingVariants =
+      dto.variants !== undefined && dto.variants.length > 0;
 
-    if (
-      typeof dto.stock === 'number' &&
-      (!syncingVariants || dto.variants!.length === 0)
-    ) {
-      const variantCount = syncingVariants
-        ? 0
-        : await this.prisma.productVariant.count({
-            where: { productId: existing.id },
-          });
-      if (variantCount === 0) {
+    if (typeof dto.stock === 'number') {
+      if (clearingVariants) {
         data.stock = dto.stock;
         data.status = computeProductStatus(dto.stock);
+      } else if (!syncingVariants) {
+        const variantCount = await this.prisma.productVariant.count({
+          where: { productId: existing.id },
+        });
+        if (variantCount === 0) {
+          data.stock = dto.stock;
+          data.status = computeProductStatus(dto.stock);
+        }
       }
     }
 
@@ -318,6 +322,12 @@ export class ProductsService {
 
       if (syncingVariants) {
         return this.syncVariants(existing.id, dto.variants!);
+      }
+
+      if (clearingVariants) {
+        await this.prisma.productVariant.deleteMany({
+          where: { productId: existing.id },
+        });
       }
 
       await this.redis.invalidateCatalog();
@@ -438,6 +448,12 @@ export class ProductsService {
     productId: string,
     variants: CreateProductVariantDto[],
   ) {
+    if (variants.length === 0) {
+      throw new InternalServerErrorException(
+        'syncVariants ne doit pas être appelé avec une liste vide',
+      );
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.productVariant.findMany({
         where: { productId },

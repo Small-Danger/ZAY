@@ -21,6 +21,7 @@ describe('ProductsService', () => {
       update: jest.Mock;
       create: jest.Mock;
       delete: jest.Mock;
+      deleteMany: jest.Mock;
       count: jest.Mock;
     };
     category: { findUnique: jest.Mock };
@@ -57,7 +58,8 @@ describe('ProductsService', () => {
         update: jest.fn(),
         create: jest.fn(),
         delete: jest.fn(),
-        count: jest.fn(),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        count: jest.fn().mockResolvedValue(0),
       },
       category: { findUnique: jest.fn().mockResolvedValue({ id: 'cat-1' }) },
       subcategory: { findFirst: jest.fn() },
@@ -183,5 +185,107 @@ describe('ProductsService', () => {
     );
     expect(prisma.productVariant.create).not.toHaveBeenCalled();
     expect(result).toBeDefined();
+  });
+
+  const baseProduct = (overrides: Record<string, unknown> = {}) => ({
+    id: 'prod-1',
+    slug: 'robe',
+    name: 'Robe',
+    price: 50,
+    stock: 10,
+    originalPrice: null,
+    categoryId: 'cat-1',
+    subcategoryId: null,
+    image: '/x.jpg',
+    images: [],
+    isPublished: true,
+    variants: [],
+    ...overrides,
+  });
+
+  it('update sans variantes avec stock + variants [] → stock final 12', async () => {
+    const existing = baseProduct({ stock: 10, variants: [] });
+    const after = baseProduct({ name: 'X', stock: 12, variants: [] });
+    prisma.product.findFirst
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(after);
+    prisma.product.update.mockResolvedValue(after);
+    prisma.productVariant.count.mockResolvedValue(0);
+
+    const result = await service.update('prod-1', {
+      name: 'X',
+      stock: 12,
+      variants: [],
+    });
+
+    expect(prisma.product.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ stock: 12 }),
+      }),
+    );
+    expect(prisma.productVariant.deleteMany).toHaveBeenCalledWith({
+      where: { productId: 'prod-1' },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(result.stock).toBe(12);
+  });
+
+  it('update sans variantes avec variants [] sans stock → stock inchangé', async () => {
+    const existing = baseProduct({ stock: 10, variants: [] });
+    const after = baseProduct({ name: 'X', stock: 10, variants: [] });
+    prisma.product.findFirst
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(after);
+    prisma.product.update.mockResolvedValue(after);
+
+    const result = await service.update('prod-1', {
+      name: 'X',
+      variants: [],
+    });
+
+    expect(prisma.product.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ stock: expect.anything() }),
+      }),
+    );
+    expect(prisma.productVariant.deleteMany).toHaveBeenCalled();
+    expect(result.stock).toBe(10);
+  });
+
+  it('update d’un produit qui avait des variantes avec variants [] + stock 7 → variantes supprimées, stock 7', async () => {
+    const existing = baseProduct({
+      stock: 5,
+      variants: [
+        {
+          id: 'var-1',
+          size: 'M',
+          colorName: 'Noir',
+          stock: 5,
+        },
+      ],
+    });
+    const after = baseProduct({ stock: 7, variants: [] });
+    prisma.product.findFirst
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(after);
+    prisma.product.update.mockResolvedValue(after);
+    prisma.productVariant.deleteMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.update('prod-1', {
+      variants: [],
+      stock: 7,
+    });
+
+    expect(prisma.product.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ stock: 7 }),
+      }),
+    );
+    expect(prisma.productVariant.deleteMany).toHaveBeenCalledWith({
+      where: { productId: 'prod-1' },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(result.stock).toBe(7);
+    expect(result.variants).toEqual([]);
   });
 });
