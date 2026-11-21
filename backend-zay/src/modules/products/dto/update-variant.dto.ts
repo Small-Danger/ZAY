@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsNumber,
+  IsInt,
   IsOptional,
   IsString,
   MaxLength,
@@ -29,7 +29,7 @@ export class UpdateProductVariantDto {
   sku?: string | null;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   @Type(() => Number)
   stock?: number;

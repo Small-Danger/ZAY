@@ -35,6 +35,7 @@ export type ApiProduct = {
   badge: string | null;
   isNew: boolean;
   isPromo: boolean;
+  isPublished?: boolean;
   categoryId: string;
   subcategoryId: string | null;
   category?: ApiCategoryRef;
@@ -58,6 +59,7 @@ export type UiProduct = {
   badge?: string;
   isNew: boolean;
   isPromo: boolean;
+  isPublished: boolean;
   categoryId: string;
   subcategoryId?: string;
   /** Nom catégorie — utilisé par filtres / fil d’Ariane */

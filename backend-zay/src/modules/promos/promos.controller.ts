@@ -9,8 +9,14 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import {
+  AuthUser,
+  CurrentUser,
+} from '../auth/decorators/current-user.decorator';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { Throttle } from '@nestjs/throttler';
 import {
   CreatePromoDto,
@@ -23,11 +29,15 @@ import { PromosService } from './promos.service';
 export class PromosController {
   constructor(private readonly promosService: PromosService) {}
 
-  /** Public — validation panier */
+  /** Public — validation panier (JWT optionnel pour règles 1re commande / limite user). */
   @Post('validate')
+  @UseGuards(OptionalJwtAuthGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  validate(@Body() dto: ValidatePromoDto) {
-    return this.promosService.validate(dto);
+  validate(
+    @Body() dto: ValidatePromoDto,
+    @CurrentUser() user?: AuthUser | null,
+  ) {
+    return this.promosService.validate(dto, user?.id);
   }
 
   @Get()

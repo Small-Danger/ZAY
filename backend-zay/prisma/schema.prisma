@@ -118,6 +118,7 @@ model Product {
   badge          String?
   isNew          Boolean  @default(true) @map("is_new")
   isPromo        Boolean  @default(false) @map("is_promo")
+  isPublished    Boolean  @default(false) @map("is_published")
   categoryId     String   @map("category_id") @db.Uuid
   subcategoryId  String?  @map("subcategory_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at")
@@ -133,6 +134,7 @@ model Product {
   @@index([subcategoryId])
   @@index([isNew])
   @@index([isPromo])
+  @@index([isPublished])
   @@map("products")
 }
 
@@ -247,16 +249,18 @@ enum PromoType {
 }
 
 model PromoCode {
-  id         String    @id @default(uuid()) @db.Uuid
-  code       String    @unique
-  type       PromoType
-  value      Decimal   @db.Decimal(10, 2)
-  expiresAt  DateTime? @map("expires_at")
-  usageLimit Int?      @map("usage_limit")
-  usageCount Int       @default(0) @map("usage_count")
-  active     Boolean   @default(true)
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(uuid()) @db.Uuid
+  code           String    @unique
+  type           PromoType
+  value          Decimal   @db.Decimal(10, 2)
+  expiresAt      DateTime? @map("expires_at")
+  usageLimit     Int?      @map("usage_limit")
+  usageCount     Int       @default(0) @map("usage_count")
+  firstOrderOnly Boolean   @default(false) @map("first_order_only")
+  perUserLimit   Int?      @map("per_user_limit")
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@map("promo_codes")
 }

@@ -2,6 +2,8 @@ import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -9,8 +11,10 @@ import {
   IsUUID,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { PRODUCT_BADGES } from '../product.helpers';
 
 function parseMaybeBoolean(value: unknown) {
   if (value === 'true' || value === true) return true;
@@ -66,7 +70,7 @@ export class CreateProductVariantDto {
   @MaxLength(80)
   sku?: string;
 
-  @IsNumber()
+  @IsInt()
   @Min(0)
   @Type(() => Number)
   stock!: number;
@@ -85,10 +89,11 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(5000)
   description?: string;
 
   @IsNumber()
-  @Min(0)
+  @Min(0.5)
   @Type(() => Number)
   price!: number;
 
@@ -99,7 +104,7 @@ export class CreateProductDto {
   originalPrice?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   @Type(() => Number)
   stock?: number;
@@ -112,8 +117,11 @@ export class CreateProductDto {
   image?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(60)
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined ? undefined : value,
+  )
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsIn([...PRODUCT_BADGES])
   badge?: string;
 
   @IsOptional()
@@ -125,6 +133,11 @@ export class CreateProductDto {
   @Transform(({ value }) => parseMaybeBoolean(value))
   @IsBoolean()
   isPromo?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => parseMaybeBoolean(value))
+  @IsBoolean()
+  isPublished?: boolean;
 
   @IsUUID()
   categoryId!: string;

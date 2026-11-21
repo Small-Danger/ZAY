@@ -63,6 +63,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     isNew?: boolean;
     isPromo?: boolean;
     search?: string;
+    includeDrafts?: boolean;
   }) {
     return `${CATALOG_PREFIX}products:${JSON.stringify({
       categoryId: query.categoryId ?? '',
@@ -70,11 +71,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       isNew: query.isNew ?? '',
       isPromo: query.isPromo ?? '',
       search: query.search?.trim().toLowerCase() ?? '',
+      includeDrafts: query.includeDrafts === true,
     })}`;
   }
 
-  catalogProductKey(idOrSlug: string) {
-    return `${CATALOG_PREFIX}product:${idOrSlug.trim().toLowerCase()}`;
+  catalogProductKey(idOrSlug: string, includeDrafts = false) {
+    const scope = includeDrafts ? 'admin' : 'public';
+    return `${CATALOG_PREFIX}product:${scope}:${idOrSlug.trim().toLowerCase()}`;
   }
 
   catalogCategoriesKey() {

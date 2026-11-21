@@ -2,6 +2,8 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -11,6 +13,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { PRODUCT_BADGES } from '../product.helpers';
 import {
   CreateProductVariantDto,
   transformImages,
@@ -44,11 +47,12 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(5000)
   description?: string;
 
   @IsOptional()
   @IsNumber()
-  @Min(0)
+  @Min(0.5)
   @Type(() => Number)
   price?: number;
 
@@ -60,7 +64,7 @@ export class UpdateProductDto {
   originalPrice?: number | null;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   @Type(() => Number)
   stock?: number;
@@ -71,9 +75,12 @@ export class UpdateProductDto {
   image?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(60)
-  badge?: string;
+  @Transform(({ value }) =>
+    value === '' || value === null ? null : value === undefined ? undefined : value,
+  )
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsIn([...PRODUCT_BADGES])
+  badge?: string | null;
 
   @IsOptional()
   @Transform(({ value }) => parseMaybeBoolean(value))
@@ -84,6 +91,11 @@ export class UpdateProductDto {
   @Transform(({ value }) => parseMaybeBoolean(value))
   @IsBoolean()
   isPromo?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => parseMaybeBoolean(value))
+  @IsBoolean()
+  isPublished?: boolean;
 
   @IsOptional()
   @IsUUID()

@@ -140,7 +140,10 @@ export class OrdersService {
     let promoUsageLimit: number | null = null;
 
     if (dto.promoCode?.trim()) {
-      const promo = await this.promosService.getValidPromo(dto.promoCode);
+      const promo = await this.promosService.getValidPromo(
+        dto.promoCode,
+        user.id,
+      );
       discountAmount = this.promosService.computeDiscount(
         promo.type,
         Number(promo.value),

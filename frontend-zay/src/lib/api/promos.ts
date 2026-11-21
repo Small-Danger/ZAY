@@ -10,6 +10,8 @@ export type ApiPromo = {
   expiresAt: string | null;
   usageLimit: number | null;
   usageCount: number;
+  firstOrderOnly: boolean;
+  perUserLimit: number | null;
   active: boolean;
 };
 
@@ -19,6 +21,8 @@ export type CreatePromoPayload = {
   value: number;
   expiresAt?: string | null;
   usageLimit?: number | null;
+  firstOrderOnly?: boolean;
+  perUserLimit?: number | null;
   active?: boolean;
 };
 

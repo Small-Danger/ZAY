@@ -1,5 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 const toOptionalBoolean = ({ value }: { value: unknown }) => {
   if (value === undefined || value === null || value === '') return undefined;
@@ -29,5 +35,12 @@ export class ProductQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(80)
   search?: string;
+
+  /** Ignoré sauf appelant ADMIN authentifié. */
+  @IsOptional()
+  @IsBoolean()
+  @Transform(toOptionalBoolean)
+  includeDrafts?: boolean;
 }

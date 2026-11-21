@@ -37,6 +37,7 @@ export function mapApiProductToUi(product: ApiProduct): UiProduct {
     badge: product.badge ?? undefined,
     isNew: product.isNew,
     isPromo: product.isPromo,
+    isPublished: product.isPublished ?? true,
     categoryId: product.categoryId,
     subcategoryId: product.subcategoryId ?? undefined,
     category: product.category?.name ?? '',
