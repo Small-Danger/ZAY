@@ -1,11 +1,29 @@
 /**
  * Config API Nest (backend-zay).
- * Navigateur : NEXT_PUBLIC_API_URL (localhost:4000).
- * SSR Docker : API_INTERNAL_URL (http://backend-zay:4000/api).
+ * Navigateur : NEXT_PUBLIC_API_URL.
+ * SSR Docker : API_INTERNAL_URL.
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ||
-  'http://localhost:4000/api';
+
+function requirePublicEnv(name: string, value: string | undefined): string {
+  const trimmed = value?.replace(/\/$/, '') ?? '';
+  if (process.env.NODE_ENV === 'production' && !trimmed) {
+    throw new Error(
+      `${name} doit être défini en production (build / variables Railway).`,
+    );
+  }
+  return trimmed;
+}
+
+const apiUrl = requirePublicEnv(
+  'NEXT_PUBLIC_API_URL',
+  process.env.NEXT_PUBLIC_API_URL,
+);
+const apiOriginEnv = requirePublicEnv(
+  'NEXT_PUBLIC_API_ORIGIN',
+  process.env.NEXT_PUBLIC_API_ORIGIN,
+);
+
+export const API_BASE_URL = apiUrl || 'http://localhost:4000/api';
 
 /** Base utilisée par fetch() — interne en Server Component, publique au navigateur. */
 export function apiRequestBase(): string {
@@ -19,14 +37,14 @@ export function apiRequestBase(): string {
 
 /** Origine backend (sans /api) — pour servir /uploads/... dans le navigateur. */
 export const API_ORIGIN =
-  process.env.NEXT_PUBLIC_API_ORIGIN?.replace(/\/$/, '') ||
+  apiOriginEnv ||
   API_BASE_URL.replace(/\/api\/?$/, '') ||
   'http://localhost:4000';
 
 /**
- * Résout une image BDD (comme Afrikraga : le CDN s’affiche tel quel) :
+ * Résout une image BDD :
  * - `https://res.cloudinary.com/...` → inchangée
- * - `/api/media/...` ou `/uploads/...` → origine Nest (repli)
+ * - `/api/media/...` ou `/uploads/...` → origine Nest
  * - `/robes.png` → asset public Next
  */
 export function resolveMediaUrl(

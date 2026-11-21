@@ -70,7 +70,7 @@ export const Lookbook = () => {
                 {/* Image Area */}
                 <div className="w-full md:w-1/2 h-[500px] md:h-[700px] relative overflow-hidden">
                   <Image
-                    src={imgData?.imageUrl || 'https://picsum.photos/seed/placeholder/800/1200'}
+                    src={imgData?.imageUrl || '/robes.png'}
                     alt={look.title}
                     fill
                     className="object-cover"

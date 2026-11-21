@@ -69,7 +69,7 @@ export const LookbookBanner = () => {
           {/* Image Side */}
           <div className="w-full lg:w-1/2 h-[500px] lg:h-auto relative">
             <Image
-              src={imgData?.imageUrl || 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&q=80&w=1200'}
+              src={imgData?.imageUrl || '/heroo3.png'}
               alt="Editorial ZAY"
               fill
               className="object-cover grayscale hover:grayscale-0 transition-all duration-1000"

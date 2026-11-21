@@ -46,7 +46,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const availableSizes = sizes.filter(Boolean);
   const [sizesOpen, setSizesOpen] = useState(false);
 
-  const imageSrc = image && image.length > 0 ? image : 'https://picsum.photos/seed/placeholder/600/800';
+  const imageSrc = image && image.length > 0 ? image : '/robes.png';
 
   return (
     <div
