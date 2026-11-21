@@ -297,6 +297,14 @@ export class OrdersService {
   ) {
     try {
       const updated = await this.prisma.$transaction(async (tx) => {
+        const locked = await tx.order.updateMany({
+          where: { id: order.id, status: OrderStatus.CANCELLED },
+          data: { status: OrderStatus.PENDING },
+        });
+        if (locked.count === 0) {
+          return null;
+        }
+
         const lines = order.items.map((item) => ({
           productId: item.productId,
           variantId: item.variantId,
@@ -328,12 +336,18 @@ export class OrdersService {
           include: orderInclude,
         });
       });
+
+      if (!updated) {
+        const current = await this.prisma.order.findUnique({
+          where: { id: order.id },
+          include: orderInclude,
+        });
+        return current ?? order;
+      }
+
       await this.redis.invalidateCatalog();
       return updated;
     } catch (err) {
-      if (paymentIntentId) {
-        await this.stripe.refundPayment(paymentIntentId);
-      }
       const refunded = await this.prisma.order.update({
         where: { id: order.id },
         data: {
@@ -348,6 +362,17 @@ export class OrdersService {
       );
       if (err instanceof BadRequestException) {
         this.logger.error(err.message);
+      }
+      if (paymentIntentId) {
+        try {
+          await this.stripe.refundPayment(paymentIntentId, order.id);
+        } catch (refundErr) {
+          this.logger.error(
+            `Commande ${order.number}: remboursement Stripe échoué (pi=${paymentIntentId}) — ${
+              refundErr instanceof Error ? refundErr.message : 'erreur'
+            }`,
+          );
+        }
       }
       return refunded;
     }
