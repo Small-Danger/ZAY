@@ -1,7 +1,6 @@
 "use client"
 
 import React from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
@@ -47,12 +46,13 @@ export function FeaturedEvent({
   const content = (
     <div className="relative max-w-5xl mx-auto aspect-[3/4] md:aspect-video bg-black overflow-hidden shadow-[0_0_50px_rgba(255,20,147,0.25)] rounded-sm">
       {image ? (
-        <Image
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
           src={image}
           alt={title}
-          fill
-          className="object-cover opacity-60 mix-blend-screen"
-          priority
+          className="absolute inset-0 h-full w-full object-cover opacity-60 mix-blend-screen"
+          loading="lazy"
+          decoding="async"
         />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-zay-text via-primary/40 to-black" />
