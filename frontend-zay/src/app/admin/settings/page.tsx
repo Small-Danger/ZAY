@@ -39,11 +39,13 @@ function emptyStoreForm() {
     shippingCost: '0',
     freeShippingThreshold: '',
     legalName: '',
+    tradeName: '',
     legalForm: '',
     shareCapital: '',
     siret: '',
     rcsCity: '',
     vatNumber: '',
+    vatFranchise: true,
     legalAddress: '',
     publicationDirector: '',
     contactPhone: '',
@@ -73,11 +75,13 @@ function fromApi(s: StoreSettings) {
     freeShippingThreshold:
       s.freeShippingThreshold != null ? String(s.freeShippingThreshold) : '',
     legalName: s.legalName || '',
+    tradeName: s.tradeName || '',
     legalForm: s.legalForm || '',
     shareCapital: s.shareCapital || '',
     siret: s.siret || '',
     rcsCity: s.rcsCity || '',
     vatNumber: s.vatNumber || '',
+    vatFranchise: s.vatFranchise !== false,
     legalAddress: s.legalAddress || '',
     publicationDirector: s.publicationDirector || '',
     contactPhone: s.contactPhone || '',
@@ -101,9 +105,11 @@ function fromApi(s: StoreSettings) {
 
 function Field({
   label,
+  hint,
   children,
 }: {
   label: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -112,6 +118,11 @@ function Field({
         {label}
       </Label>
       {children}
+      {hint ? (
+        <p className="text-[0.55rem] text-zay-text-muted font-light leading-relaxed">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -211,11 +222,13 @@ export default function AdminSettingsPage() {
           ? Math.max(0, parseFloat(store.freeShippingThreshold))
           : null,
         legalName: nullIfEmpty(store.legalName),
+        tradeName: nullIfEmpty(store.tradeName),
         legalForm: nullIfEmpty(store.legalForm),
         shareCapital: nullIfEmpty(store.shareCapital),
         siret: nullIfEmpty(store.siret),
         rcsCity: nullIfEmpty(store.rcsCity),
         vatNumber: nullIfEmpty(store.vatNumber),
+        vatFranchise: store.vatFranchise,
         legalAddress: nullIfEmpty(store.legalAddress),
         publicationDirector: nullIfEmpty(store.publicationDirector),
         contactPhone: nullIfEmpty(store.contactPhone),
@@ -351,8 +364,14 @@ export default function AdminSettingsPage() {
                 Informations légales
               </AccordionTrigger>
               <AccordionContent className="grid md:grid-cols-2 gap-4 pb-4">
-                <Field label="Raison sociale">
+                <Field
+                  label="Raison sociale"
+                  hint="Micro-entreprise : prénom NOM suivi de EI"
+                >
                   <Input value={store.legalName} onChange={(e) => set('legalName')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Nom commercial">
+                  <Input value={store.tradeName} onChange={(e) => set('tradeName')(e.target.value)} className={inputClass} placeholder="ex: ZAY" />
                 </Field>
                 <Field label="Forme juridique">
                   <Input value={store.legalForm} onChange={(e) => set('legalForm')(e.target.value)} className={inputClass} />
@@ -366,9 +385,33 @@ export default function AdminSettingsPage() {
                 <Field label="Ville RCS">
                   <Input value={store.rcsCity} onChange={(e) => set('rcsCity')(e.target.value)} className={inputClass} />
                 </Field>
-                <Field label="N° TVA">
-                  <Input value={store.vatNumber} onChange={(e) => set('vatNumber')(e.target.value)} className={inputClass} />
-                </Field>
+                <div className="md:col-span-2 flex items-start gap-3 py-1">
+                  <input
+                    id="vatFranchise"
+                    type="checkbox"
+                    checked={store.vatFranchise}
+                    onChange={(e) =>
+                      setStore((prev) => ({
+                        ...prev,
+                        vatFranchise: e.target.checked,
+                      }))
+                    }
+                    className="mt-1 h-4 w-4 accent-primary"
+                  />
+                  <label htmlFor="vatFranchise" className="space-y-1 cursor-pointer">
+                    <span className="block text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                      Franchise en base de TVA
+                    </span>
+                    <span className="block text-[0.55rem] text-zay-text-muted font-light">
+                      Affiche « TVA non applicable, art. 293 B du CGI » (recommandé pour micro-entreprise).
+                    </span>
+                  </label>
+                </div>
+                {!store.vatFranchise && (
+                  <Field label="N° TVA">
+                    <Input value={store.vatNumber} onChange={(e) => set('vatNumber')(e.target.value)} className={inputClass} />
+                  </Field>
+                )}
                 <Field label="Adresse légale">
                   <Textarea value={store.legalAddress} onChange={(e) => set('legalAddress')(e.target.value)} className="border-zay-border rounded-none min-h-[80px]" />
                 </Field>

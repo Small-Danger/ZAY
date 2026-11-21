@@ -356,11 +356,13 @@ model StoreSettings {
   freeShippingThreshold Decimal?  @map("free_shipping_threshold") @db.Decimal(10, 2)
 
   legalName           String? @map("legal_name")
+  tradeName           String? @map("trade_name")
   legalForm           String? @map("legal_form")
   shareCapital        String? @map("share_capital")
   siret               String?
   rcsCity             String? @map("rcs_city")
   vatNumber           String? @map("vat_number")
+  vatFranchise        Boolean @default(true) @map("vat_franchise")
   legalAddress        String? @map("legal_address")
   publicationDirector String? @map("publication_director")
 

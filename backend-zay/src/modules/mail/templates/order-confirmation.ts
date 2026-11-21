@@ -11,6 +11,14 @@ export type OrderEmailItem = {
   lineTotal: MoneyLike;
 };
 
+export type OrderSellerIdentity = {
+  legalName: string | null;
+  tradeName: string | null;
+  legalAddress: string | null;
+  siret: string | null;
+  vatFranchise: boolean;
+};
+
 export type OrderConfirmationData = {
   orderNumber: string;
   customerFirstName: string;
@@ -24,7 +32,48 @@ export type OrderConfirmationData = {
   postalCode: string;
   country: string;
   trackingUrl: string;
+  seller?: OrderSellerIdentity | null;
 };
+
+function sellerFooter(seller?: OrderSellerIdentity | null) {
+  if (!seller) {
+    return {
+      html: `<p style="color:#888;font-size:12px;margin-top:32px;">ZAY Atelier — Merci de votre confiance.</p>`,
+      text: `ZAY Atelier — Merci de votre confiance.`,
+    };
+  }
+
+  const legal = seller.legalName?.trim();
+  const trade = seller.tradeName?.trim();
+  const address = seller.legalAddress?.trim();
+  const siret = seller.siret?.trim();
+
+  const identityParts: string[] = [];
+  if (legal) {
+    identityParts.push(
+      `${legal} — entrepreneur individuel (EI)${
+        trade ? `, exerçant sous le nom commercial « ${trade} »` : ''
+      }`,
+    );
+  } else if (trade) {
+    identityParts.push(trade);
+  }
+  if (address) identityParts.push(address);
+  if (siret) identityParts.push(`SIRET : ${siret}`);
+  if (seller.vatFranchise) {
+    identityParts.push('TVA non applicable, art. 293 B du CGI');
+  }
+
+  const lines = identityParts.length
+    ? identityParts
+    : ['ZAY Atelier'];
+  const htmlLines = lines.map((l) => escapeHtml(l)).join('<br/>');
+
+  return {
+    html: `<p style="color:#888;font-size:12px;margin-top:32px;line-height:1.6;">${htmlLines}<br/>Merci de votre confiance.</p>`,
+    text: `${lines.join('\n')}\nMerci de votre confiance.`,
+  };
+}
 
 export function orderConfirmationEmail(data: OrderConfirmationData) {
   const name = escapeHtml(data.customerFirstName || 'Cliente');
@@ -64,6 +113,8 @@ export function orderConfirmationEmail(data: OrderConfirmationData) {
       ? `Remise : −${formatEuro(data.discountAmount)}\n`
       : '';
 
+  const footer = sellerFooter(data.seller);
+
   const subject = `Confirmation de commande ${data.orderNumber} — ZAY Atelier`;
   const html = `<!DOCTYPE html><html lang="fr"><body style="font-family:Georgia,serif;color:#222;line-height:1.5;max-width:560px;margin:0 auto;padding:24px;">
 <p style="font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#888;">ZAY Atelier</p>
@@ -79,7 +130,7 @@ ${discountRow}
 </table>
 <p style="font-size:14px;"><strong>Adresse de livraison</strong><br/>${address}</p>
 <p><a href="${escapeHtml(data.trackingUrl)}" style="color:#222;">Suivre ma commande</a></p>
-<p style="color:#888;font-size:12px;margin-top:32px;">ZAY Atelier — Merci de votre confiance.</p>
+${footer.html}
 </body></html>`;
 
   const text = `ZAY Atelier
@@ -102,7 +153,7 @@ ${addressText}
 
 Suivre ma commande : ${data.trackingUrl}
 
-ZAY Atelier — Merci de votre confiance.`;
+${footer.text}`;
 
   return { subject, html, text };
 }

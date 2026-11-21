@@ -920,6 +920,9 @@ export class OrdersService {
 
       const frontendUrl = this.config.get<string>('app.frontendUrl') ?? '';
       const trackingUrl = `${frontendUrl}/commande/suivi?id=${encodeURIComponent(order.number)}`;
+      const store = await this.prisma.storeSettings.findUnique({
+        where: { id: 1 },
+      });
       const payload = {
         orderNumber: order.number,
         customerFirstName: order.firstName,
@@ -940,6 +943,15 @@ export class OrdersService {
         postalCode: order.postalCode,
         country: order.country,
         trackingUrl,
+        seller: store
+          ? {
+              legalName: store.legalName,
+              tradeName: store.tradeName,
+              legalAddress: store.legalAddress,
+              siret: store.siret,
+              vatFranchise: store.vatFranchise,
+            }
+          : null,
       };
 
       const customer = orderConfirmationEmail(payload);

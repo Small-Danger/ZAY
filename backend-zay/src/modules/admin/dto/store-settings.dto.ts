@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEmail,
   IsNumber,
@@ -43,6 +44,11 @@ export class UpdateStoreSettingsDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
+  tradeName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
   legalForm?: string | null;
 
   @IsOptional()
@@ -64,6 +70,10 @@ export class UpdateStoreSettingsDto {
   @IsString()
   @MaxLength(40)
   vatNumber?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  vatFranchise?: boolean;
 
   @IsOptional()
   @IsString()

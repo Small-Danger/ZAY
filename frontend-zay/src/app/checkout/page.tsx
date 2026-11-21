@@ -24,6 +24,8 @@ import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 import { formatEUR } from '@/lib/format';
 import { isKlarnaEligibleAmount } from '@/lib/klarna';
+import { API_BASE_URL } from '@/lib/api/config';
+import type { PublicStoreSettings } from '@/lib/api/store-settings-public';
 
 const STEPS = [
   { id: 1, name: 'Livraison' },
@@ -56,6 +58,7 @@ export default function CheckoutPage() {
     phone: '',
   });
   const [paymentMethod, setPaymentMethod] = useState<ApiPaymentMethod>('CARD');
+  const [vatFranchise, setVatFranchise] = useState(true);
 
   useEffect(() => {
     if (!getAccessToken()) {
@@ -68,6 +71,17 @@ export default function CheckoutPage() {
       notify('Paiement annulé. Votre panier est intact.');
     }
   }, [router]);
+
+  useEffect(() => {
+    void fetch(`${API_BASE_URL}/store-settings/public`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: PublicStoreSettings | null) => {
+        if (data) setVatFranchise(data.vatFranchise !== false);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, []);
 
   useEffect(() => {
     if (!mounted || !authed) return;
@@ -513,6 +527,11 @@ export default function CheckoutPage() {
                     <span className="text-xs tracking-[0.2em] font-light uppercase">Total</span>
                     <span className="text-2xl font-headline font-light">{formatEUR(finalPrice())}</span>
                   </div>
+                  {vatFranchise && (
+                    <p className="text-[0.55rem] text-zay-text-muted tracking-widest font-light">
+                      TVA non applicable, art. 293 B du CGI
+                    </p>
+                  )}
                 </div>
 
                 <div className="pt-4 flex flex-col items-center gap-4 text-center">

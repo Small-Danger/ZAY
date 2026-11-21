@@ -20,6 +20,8 @@ import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { checkoutPath } from '@/lib/auth/session';
 import { formatEUR } from '@/lib/format';
 import { isKlarnaEligibleAmount } from '@/lib/klarna';
+import { API_BASE_URL } from '@/lib/api/config';
+import type { PublicStoreSettings } from '@/lib/api/store-settings-public';
 
 export default function PanierPage() {
   const [mounted, setMounted] = useState(false);
@@ -27,6 +29,7 @@ export default function PanierPage() {
   const [promoInput, setPromoInput] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [stockWarning, setStockWarning] = useState<string | null>(null);
+  const [vatFranchise, setVatFranchise] = useState(true);
   const {
     items,
     removeItem,
@@ -43,6 +46,14 @@ export default function PanierPage() {
   useEffect(() => {
     setMounted(true);
     setCaisseHref(checkoutPath());
+    void fetch(`${API_BASE_URL}/store-settings/public`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: PublicStoreSettings | null) => {
+        if (data) setVatFranchise(data.vatFranchise !== false);
+      })
+      .catch(() => {
+        /* ignore */
+      });
   }, []);
 
   // Resync stock réel depuis l’API (retire / plafonne si besoin)
@@ -280,9 +291,16 @@ export default function PanierPage() {
                     </div>
 
                     <div className="pt-4 border-t border-zay-border flex justify-between items-end">
-                      <span className="text-[0.65rem] md:text-xs tracking-[0.2em] md:tracking-[0.25em] font-bold uppercase">Total TTC</span>
+                      <span className="text-[0.65rem] md:text-xs tracking-[0.2em] md:tracking-[0.25em] font-bold uppercase">
+                        {vatFranchise ? 'Total' : 'Total TTC'}
+                      </span>
                       <span className="text-2xl md:text-3xl font-headline font-bold">{formatEUR(total)}</span>
                     </div>
+                    {vatFranchise && (
+                      <p className="text-[0.55rem] md:text-[0.6rem] text-zay-text-muted tracking-widest font-light">
+                        TVA non applicable, art. 293 B du CGI
+                      </p>
+                    )}
 
                     {isKlarnaEligibleAmount(total) && (
                       <div className="bg-zay-main p-4 rounded-sm space-y-1">

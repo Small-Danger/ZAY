@@ -80,6 +80,15 @@ export const Footer = () => {
 
   const instagram = settings?.instagramUrl?.trim() || null;
   const tiktok = settings?.tiktokUrl?.trim() || null;
+  const year = new Date().getFullYear();
+  const brand =
+    settings?.tradeName?.trim() ||
+    settings?.storeName?.trim() ||
+    'ZAY';
+  const legalName = settings?.legalName?.trim() || null;
+  const copyright = legalName
+    ? `© ${year} ${brand} — ${legalName} EI`
+    : `© ${year} ${brand}. Tous droits réservés.`;
 
   return (
     <footer className="bg-zay-text text-white">
@@ -201,7 +210,7 @@ export const Footer = () => {
         <div className="container mx-auto px-4 md:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="text-[10px] text-white/40 tracking-[0.3em] uppercase">
-              © 2026 ZAY ATELIER. TOUS DROITS RÉSERVÉS.
+              {copyright}
             </div>
             <div className="flex flex-wrap justify-center gap-4 text-[10px] font-bold tracking-[0.1em] text-white/40 uppercase">
               <span>Carte bancaire</span>

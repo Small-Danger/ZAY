@@ -75,11 +75,14 @@ export class AdminService {
             ? undefined
             : dto.freeShippingThreshold,
         legalName: nullableTrim(dto.legalName),
+        tradeName: nullableTrim(dto.tradeName),
         legalForm: nullableTrim(dto.legalForm),
         shareCapital: nullableTrim(dto.shareCapital),
         siret: nullableTrim(dto.siret),
         rcsCity: nullableTrim(dto.rcsCity),
         vatNumber: nullableTrim(dto.vatNumber),
+        vatFranchise:
+          dto.vatFranchise === undefined ? undefined : dto.vatFranchise,
         legalAddress: nullableTrim(dto.legalAddress),
         publicationDirector: nullableTrim(dto.publicationDirector),
         contactPhone: nullableTrim(dto.contactPhone),

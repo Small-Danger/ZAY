@@ -7,11 +7,13 @@ export type StoreSettings = {
   shippingCost: string | number;
   freeShippingThreshold: string | number | null;
   legalName: string | null;
+  tradeName: string | null;
   legalForm: string | null;
   shareCapital: string | null;
   siret: string | null;
   rcsCity: string | null;
   vatNumber: string | null;
+  vatFranchise: boolean;
   legalAddress: string | null;
   publicationDirector: string | null;
   contactPhone: string | null;
@@ -39,11 +41,13 @@ export type UpdateStoreSettingsPayload = Partial<{
   shippingCost: number;
   freeShippingThreshold: number | null;
   legalName: string | null;
+  tradeName: string | null;
   legalForm: string | null;
   shareCapital: string | null;
   siret: string | null;
   rcsCity: string | null;
   vatNumber: string | null;
+  vatFranchise: boolean;
   legalAddress: string | null;
   publicationDirector: string | null;
   contactPhone: string | null;
