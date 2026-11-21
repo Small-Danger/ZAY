@@ -119,11 +119,13 @@ export class StripeService {
     };
 
     // Carte : on force la CB.
-    // Klarna : config Dashboard, ou payment_method_configuration si défini.
+    // Klarna : payment_method_types forcé, sauf si une PMC Stripe est configurée.
     if (!useKlarna) {
       sessionParams.payment_method_types = ['card'];
     } else if (klarnaPmc) {
       sessionParams.payment_method_configuration = klarnaPmc;
+    } else {
+      sessionParams.payment_method_types = ['klarna'];
     }
 
     try {
@@ -137,11 +139,22 @@ export class StripeService {
       }
       return { id: session.id, url: session.url };
     } catch (err) {
+      if (
+        err instanceof BadRequestException ||
+        err instanceof ServiceUnavailableException
+      ) {
+        throw err;
+      }
       const detail =
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: string }).message)
           : 'Stripe checkout session failed';
       this.logger.error(detail);
+      if (useKlarna && detail.toLowerCase().includes('klarna')) {
+        throw new ServiceUnavailableException(
+          'Le paiement Klarna est momentanément indisponible. Payez par carte.',
+        );
+      }
       if (useKlarna) {
         throw new BadRequestException(
           'Klarna n’a pas pu s’ouvrir. Réessaie, ou paie par carte.',

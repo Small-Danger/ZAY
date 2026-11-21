@@ -19,6 +19,7 @@ import { notifyError } from '@/lib/notify';
 import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { checkoutPath } from '@/lib/auth/session';
 import { formatEUR } from '@/lib/format';
+import { isKlarnaEligibleAmount } from '@/lib/klarna';
 
 export default function PanierPage() {
   const [mounted, setMounted] = useState(false);
@@ -283,15 +284,17 @@ export default function PanierPage() {
                       <span className="text-2xl md:text-3xl font-headline font-bold">{formatEUR(total)}</span>
                     </div>
 
-                    <div className="bg-zay-main p-4 rounded-sm space-y-1">
-                      <div className="flex items-center gap-2 text-primary">
-                        <Sparkles size={14} strokeWidth={1} />
-                        <p className="text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-widest">Paiement 3× sans frais</p>
+                    {isKlarnaEligibleAmount(total) && (
+                      <div className="bg-zay-main p-4 rounded-sm space-y-1">
+                        <div className="flex items-center gap-2 text-primary">
+                          <Sparkles size={14} strokeWidth={1} />
+                          <p className="text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-widest">Paiement 3× sans frais</p>
+                        </div>
+                        <p className="text-[0.55rem] md:text-[0.6rem] text-zay-text-muted italic font-bold">
+                          ou 3× <span className="text-zay-text font-bold">{installmentPrice}</span> avec Klarna
+                        </p>
                       </div>
-                      <p className="text-[0.55rem] md:text-[0.6rem] text-zay-text-muted italic font-bold">
-                        ou en 3× avec Klarna — <span className="text-zay-text font-bold">{installmentPrice}</span>
-                      </p>
-                    </div>
+                    )}
                   </div>
 
                   <Button 

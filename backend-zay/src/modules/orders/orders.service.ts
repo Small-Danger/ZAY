@@ -13,6 +13,7 @@ import type { AuthUser } from '../auth/decorators/current-user.decorator';
 import { PromosService } from '../promos/promos.service';
 import { computeProductStatus } from '../products/product.helpers';
 import { StripeService } from '../payments/stripe.service';
+import { isKlarnaEligibleAmount } from '../payments/klarna.constants';
 import { MailService } from '../mail/mail.service';
 import {
   adminNewOrderEmail,
@@ -164,6 +165,16 @@ export class OrdersService {
     }
 
     const total = Math.max(0, subtotal + shippingCost - discountAmount);
+
+    if (
+      dto.paymentMethod === PaymentMethod.KLARNA &&
+      !isKlarnaEligibleAmount(total)
+    ) {
+      throw new BadRequestException(
+        'Le paiement en 3× Klarna est disponible de 1 € à 1 500 €. Choisissez la carte bancaire.',
+      );
+    }
+
     const shipping = dto.shipping;
     const customerName = `${shipping.firstName.trim()} ${shipping.lastName.trim()}`;
     const number = await this.nextOrderNumber();

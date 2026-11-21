@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils';
 import { notify } from '@/lib/notify';
 import { SIZE_GUIDE } from '@/lib/size-guide';
 import { formatEUR } from '@/lib/format';
+import { isKlarnaEligibleAmount } from '@/lib/klarna';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProduct } from '@/hooks/use-products';
 import type { UiProduct } from '@/lib/api';
@@ -322,10 +323,11 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
                     )}
                 </div>
 
-                <p className="text-[11px] text-muted-foreground italic tracking-wide font-bold">
-                  ou en 3× avec Klarna —{' '}
-                  <span className="text-zay-text">{installmentPrice}</span>
-                </p>
+                {isKlarnaEligibleAmount(product.price) && (
+                  <p className="text-[11px] text-muted-foreground italic tracking-wide font-bold">
+                    ou 3× {installmentPrice} avec Klarna
+                  </p>
+                )}
               </div>
 
               {colors.length > 0 && (

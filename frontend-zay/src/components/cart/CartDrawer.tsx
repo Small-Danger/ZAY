@@ -10,10 +10,13 @@ import { checkoutPath } from '@/lib/auth/session';
 import { Button } from '@/components/ui/button';
 import { MediaImage } from '@/components/ui/media-image';
 import { formatEUR } from '@/lib/format';
+import { isKlarnaEligibleAmount } from '@/lib/klarna';
 
 export const CartDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const { items, removeItem, totalPrice } = useCartStore();
   const [caisseHref, setCaisseHref] = useState('/checkout');
+  const cartTotal = totalPrice();
+  const klarnaOk = isKlarnaEligibleAmount(cartTotal);
 
   useEffect(() => {
     if (isOpen) setCaisseHref(checkoutPath());
@@ -85,9 +88,16 @@ export const CartDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
             {items.length > 0 && (
               <div className="p-6 border-t border-zay-border bg-zay-main space-y-6">
-                <div className="flex justify-between items-end">
-                  <span className="text-[0.65rem] font-bold uppercase tracking-widest">Total</span>
-                  <span className="text-xl font-headline">{formatEUR(totalPrice())}</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <span className="text-[0.65rem] font-bold uppercase tracking-widest">Total</span>
+                    <span className="text-xl font-headline">{formatEUR(cartTotal)}</span>
+                  </div>
+                  {klarnaOk && (
+                    <p className="text-[0.55rem] text-zay-text-muted italic tracking-wide">
+                      ou 3× {formatEUR(cartTotal / 3)} avec Klarna
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-3">
                   <Button asChild onClick={onClose} className="w-full bg-primary hover:bg-zay-text text-white py-6 rounded-none text-[0.65rem] tracking-[0.2em] font-bold uppercase">

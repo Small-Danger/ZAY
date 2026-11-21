@@ -1,12 +1,14 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
+import { OrderStatus, PaymentMethod, Prisma, Role } from '@prisma/client';
 import { OrdersService } from './orders.service';
 import { StripeService } from '../payments/stripe.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { PromosService } from '../promos/promos.service';
 import { MailService } from '../mail/mail.service';
+import type { AuthUser } from '../auth/decorators/current-user.decorator';
+import type { CreateOrderDto } from './dto/create-order.dto';
 
 type OrderRow = {
   id: string;
@@ -57,6 +59,7 @@ describe('OrdersService — paiement Stripe', () => {
       updateMany: jest.Mock;
     };
     productVariant: {
+      findUnique: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
       findMany: jest.Mock;
@@ -74,6 +77,7 @@ describe('OrdersService — paiement Stripe', () => {
     retrievePaidSession: jest.Mock;
     refundPayment: jest.Mock;
     expireSession: jest.Mock;
+    createCheckoutSession: jest.Mock;
   };
   let redis: { invalidateCatalog: jest.Mock };
   let mail: { send: jest.Mock };
@@ -161,6 +165,7 @@ describe('OrdersService — paiement Stripe', () => {
         updateMany: jest.fn(),
       },
       productVariant: {
+        findUnique: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
         findMany: jest.fn(),
@@ -181,6 +186,7 @@ describe('OrdersService — paiement Stripe', () => {
       retrievePaidSession: jest.fn(),
       refundPayment: jest.fn().mockResolvedValue(undefined),
       expireSession: jest.fn().mockResolvedValue(undefined),
+      createCheckoutSession: jest.fn(),
     };
 
     redis = { invalidateCatalog: jest.fn().mockResolvedValue(undefined) };
@@ -419,6 +425,103 @@ describe('OrdersService — paiement Stripe', () => {
       { payment_intent: 'pi_test_1' },
       { idempotencyKey: 'refund-order-order-1' },
     );
+  });
+
+  it("KLARNA → sessions.create avec payment_method_types: ['klarna']", async () => {
+    const create = jest
+      .fn()
+      .mockResolvedValue({ id: 'cs_klarna', url: 'https://checkout.stripe.test/k' });
+    const stripeService = new StripeService({
+      get: (key: string) => {
+        if (key === 'app.stripeSecretKey') return 'sk_test_dummy_key_for_unit';
+        if (key === 'app.frontendUrl') return 'http://localhost:9002';
+        if (key === 'app.stripeKlarnaPaymentMethodConfiguration') return '';
+        return '';
+      },
+    } as unknown as ConfigService);
+    (stripeService as unknown as { client: unknown }).client = {
+      checkout: { sessions: { create } },
+    };
+
+    await stripeService.createCheckoutSession({
+      orderId: 'order-1',
+      orderNumber: 'ZAY-10001',
+      amountEur: 120,
+      customerEmail: 'a@b.c',
+      paymentMethod: PaymentMethod.KLARNA,
+      customerName: 'A B',
+      addressLine: '1 rue Test',
+      city: 'Paris',
+      postalCode: '75001',
+      country: 'France',
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payment_method_types: ['klarna'],
+        locale: 'fr',
+        billing_address_collection: 'required',
+      }),
+    );
+    expect(create.mock.calls[0][0].payment_method_configuration).toBeUndefined();
+  });
+
+  it('KLARNA total 1 600 € → refus avant création de commande', async () => {
+    prisma.order.findMany.mockResolvedValue([]);
+    prisma.product.findUnique.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Robe',
+      price: new Prisma.Decimal('1600'),
+      image: '/robe.png',
+      stock: 5,
+      variants: [
+        { id: 'var-1', size: 'M', colorName: 'Noir', stock: 5 },
+      ],
+    });
+    prisma.productVariant.findUnique.mockResolvedValue({
+      id: 'var-1',
+      stock: 5,
+    });
+    prisma.storeSettings.findUnique.mockResolvedValue({
+      shippingCost: 0,
+      freeShippingThreshold: null,
+    });
+
+    const dto: CreateOrderDto = {
+      items: [
+        {
+          productId: 'prod-1',
+          size: 'M',
+          color: 'Noir',
+          quantity: 1,
+        },
+      ],
+      shipping: {
+        firstName: 'A',
+        lastName: 'B',
+        addressLine: '1 rue Test',
+        city: 'Paris',
+        postalCode: '75001',
+        country: 'France',
+      },
+      paymentMethod: PaymentMethod.KLARNA,
+    };
+
+    await expect(
+      service.checkout(
+        {
+          id: 'user-1',
+          email: 'a@b.c',
+          role: Role.CLIENT,
+          firstName: 'A',
+          lastName: 'B',
+        } satisfies AuthUser,
+        dto,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(stripe.createCheckoutSession).not.toHaveBeenCalled();
   });
 
   it('deux annulations concurrentes (webhook + release user) ne restockent qu’une fois', async () => {
