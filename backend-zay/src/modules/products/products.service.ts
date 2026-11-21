@@ -429,7 +429,11 @@ export class ProductsService {
     return this.syncStockFromVariants(product.id);
   }
 
-  /** Met à jour / crée / supprime les variantes sans changer les ids conservés. */
+  /**
+   * Synchronise les variantes sans recréation :
+   * update par clé (size majuscule + colorName trim), create des manquantes,
+   * delete des absentes — les ids conservés restent stables.
+   */
   private async syncVariants(
     productId: string,
     variants: CreateProductVariantDto[],
