@@ -5,13 +5,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { ShieldCheck, User, Store } from 'lucide-react';
 import { changePassword, fetchMe, updateProfile } from '@/lib/api/auth';
 import { getSessionUser } from '@/lib/auth/session';
-import { fetchStoreSettings, updateStoreSettings } from '@/lib/api/store-settings';
+import {
+  fetchStoreSettings,
+  updateStoreSettings,
+  type StoreSettings,
+} from '@/lib/api/store-settings';
 import { notifyError, notifySuccess } from '@/lib/notify';
 import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
 import { cn } from '@/lib/utils';
+import { resolveMediaUrl } from '@/lib/api/config';
 
 function sanitizeMoney(raw: string): string {
   if (raw.trim() === '') return '';
@@ -19,6 +31,92 @@ function sanitizeMoney(raw: string): string {
   if (!Number.isFinite(n) || n < 0) return '0';
   return raw;
 }
+
+function emptyStoreForm() {
+  return {
+    storeName: 'ZAY',
+    contactEmail: '',
+    shippingCost: '0',
+    freeShippingThreshold: '',
+    legalName: '',
+    legalForm: '',
+    shareCapital: '',
+    siret: '',
+    rcsCity: '',
+    vatNumber: '',
+    legalAddress: '',
+    publicationDirector: '',
+    contactPhone: '',
+    showroomAddress: '',
+    openingHours: '',
+    hostName: 'Railway Corporation',
+    hostAddress: '',
+    hostContact: '',
+    mediatorName: '',
+    mediatorUrl: '',
+    instagramUrl: '',
+    tiktokUrl: '',
+    eventTitle: '',
+    eventSubtitle: '',
+    eventDate: '',
+    eventImageUrl: '',
+    eventLink: '',
+    eventPartners: '',
+  };
+}
+
+function fromApi(s: StoreSettings) {
+  return {
+    storeName: s.storeName || 'ZAY',
+    contactEmail: s.contactEmail || '',
+    shippingCost: String(s.shippingCost ?? 0),
+    freeShippingThreshold:
+      s.freeShippingThreshold != null ? String(s.freeShippingThreshold) : '',
+    legalName: s.legalName || '',
+    legalForm: s.legalForm || '',
+    shareCapital: s.shareCapital || '',
+    siret: s.siret || '',
+    rcsCity: s.rcsCity || '',
+    vatNumber: s.vatNumber || '',
+    legalAddress: s.legalAddress || '',
+    publicationDirector: s.publicationDirector || '',
+    contactPhone: s.contactPhone || '',
+    showroomAddress: s.showroomAddress || '',
+    openingHours: s.openingHours || '',
+    hostName: s.hostName || 'Railway Corporation',
+    hostAddress: s.hostAddress || '',
+    hostContact: s.hostContact || '',
+    mediatorName: s.mediatorName || '',
+    mediatorUrl: s.mediatorUrl || '',
+    instagramUrl: s.instagramUrl || '',
+    tiktokUrl: s.tiktokUrl || '',
+    eventTitle: s.eventTitle || '',
+    eventSubtitle: s.eventSubtitle || '',
+    eventDate: s.eventDate ? s.eventDate.slice(0, 16) : '',
+    eventImageUrl: s.eventImageUrl || '',
+    eventLink: s.eventLink || '',
+    eventPartners: s.eventPartners || '',
+  };
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+const inputClass = 'h-10 border-zay-border rounded-none';
 
 export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(() => !getSessionUser());
@@ -37,12 +135,7 @@ export default function AdminSettingsPage() {
     newPassword: '',
     confirmPassword: '',
   });
-  const [store, setStore] = useState({
-    storeName: 'ZAY',
-    contactEmail: '',
-    shippingCost: '0',
-    freeShippingThreshold: '',
-  });
+  const [store, setStore] = useState(emptyStoreForm);
 
   useEffect(() => {
     const session = getSessionUser();
@@ -71,17 +164,9 @@ export default function AdminSettingsPage() {
           /* layout redirige si session invalide */
         }),
       fetchStoreSettings()
-        .then((s) => {
-          setStore({
-            storeName: s.storeName || 'ZAY',
-            contactEmail: s.contactEmail || '',
-            shippingCost: String(s.shippingCost ?? 0),
-            freeShippingThreshold:
-              s.freeShippingThreshold != null ? String(s.freeShippingThreshold) : '',
-          });
-        })
+        .then((s) => setStore(fromApi(s)))
         .catch(() => {
-          /* ignore si migration pas encore appliquée */
+          /* ignore */
         }),
     ]).finally(() => setLoading(false));
   }, []);
@@ -117,21 +202,42 @@ export default function AdminSettingsPage() {
     if (storeSaving) return;
     setStoreSaving(true);
     try {
+      const nullIfEmpty = (v: string) => (v.trim() ? v.trim() : null);
       const s = await updateStoreSettings({
         storeName: store.storeName.trim() || 'ZAY',
-        contactEmail: store.contactEmail.trim() || null,
+        contactEmail: nullIfEmpty(store.contactEmail),
         shippingCost: Math.max(0, parseFloat(store.shippingCost) || 0),
         freeShippingThreshold: store.freeShippingThreshold.trim()
           ? Math.max(0, parseFloat(store.freeShippingThreshold))
           : null,
+        legalName: nullIfEmpty(store.legalName),
+        legalForm: nullIfEmpty(store.legalForm),
+        shareCapital: nullIfEmpty(store.shareCapital),
+        siret: nullIfEmpty(store.siret),
+        rcsCity: nullIfEmpty(store.rcsCity),
+        vatNumber: nullIfEmpty(store.vatNumber),
+        legalAddress: nullIfEmpty(store.legalAddress),
+        publicationDirector: nullIfEmpty(store.publicationDirector),
+        contactPhone: nullIfEmpty(store.contactPhone),
+        showroomAddress: nullIfEmpty(store.showroomAddress),
+        openingHours: nullIfEmpty(store.openingHours),
+        hostName: store.hostName.trim() || 'Railway Corporation',
+        hostAddress: nullIfEmpty(store.hostAddress),
+        hostContact: nullIfEmpty(store.hostContact),
+        mediatorName: nullIfEmpty(store.mediatorName),
+        mediatorUrl: nullIfEmpty(store.mediatorUrl),
+        instagramUrl: nullIfEmpty(store.instagramUrl),
+        tiktokUrl: nullIfEmpty(store.tiktokUrl),
+        eventTitle: nullIfEmpty(store.eventTitle),
+        eventSubtitle: nullIfEmpty(store.eventSubtitle),
+        eventDate: store.eventDate.trim()
+          ? new Date(store.eventDate).toISOString()
+          : null,
+        eventImageUrl: nullIfEmpty(store.eventImageUrl),
+        eventLink: nullIfEmpty(store.eventLink),
+        eventPartners: nullIfEmpty(store.eventPartners),
       });
-      setStore({
-        storeName: s.storeName || 'ZAY',
-        contactEmail: s.contactEmail || '',
-        shippingCost: String(s.shippingCost ?? 0),
-        freeShippingThreshold:
-          s.freeShippingThreshold != null ? String(s.freeShippingThreshold) : '',
-      });
+      setStore(fromApi(s));
       notifySuccess('Paramètres boutique enregistrés.');
     } catch (err) {
       notifyError(err, 'Erreur boutique');
@@ -173,6 +279,11 @@ export default function AdminSettingsPage() {
   const pwdMismatch =
     pwd.confirmPassword.length > 0 && pwd.newPassword !== pwd.confirmPassword;
 
+  const set =
+    (key: keyof ReturnType<typeof emptyStoreForm>) =>
+    (value: string) =>
+      setStore((prev) => ({ ...prev, [key]: value }));
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
@@ -186,50 +297,40 @@ export default function AdminSettingsPage() {
         <AdminBusyOverlay show={storeSaving} label="Enregistrement…" />
         <div className="flex items-center gap-3 px-5 py-4 border-b border-zay-border">
           <Store size={16} className="text-primary" />
-          <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">Boutique</h2>
+          <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">
+            Boutique
+          </h2>
         </div>
         <form onSubmit={handleSaveStore}>
           <div className="px-5 py-4 grid md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                Nom boutique
-              </Label>
+            <Field label="Nom boutique">
               <Input
                 value={store.storeName}
-                onChange={(e) => setStore({ ...store, storeName: e.target.value })}
-                className="h-10 border-zay-border rounded-none"
+                onChange={(e) => set('storeName')(e.target.value)}
+                className={inputClass}
               />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                Email contact
-              </Label>
+            </Field>
+            <Field label="Email contact">
               <Input
                 type="email"
                 value={store.contactEmail}
-                onChange={(e) => setStore({ ...store, contactEmail: e.target.value })}
-                className="h-10 border-zay-border rounded-none"
+                onChange={(e) => set('contactEmail')(e.target.value)}
+                className={inputClass}
               />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                Frais de port (€)
-              </Label>
+            </Field>
+            <Field label="Frais de port (€)">
               <Input
                 type="number"
                 step="0.01"
                 min="0"
                 value={store.shippingCost}
                 onChange={(e) =>
-                  setStore({ ...store, shippingCost: sanitizeMoney(e.target.value) })
+                  set('shippingCost')(sanitizeMoney(e.target.value))
                 }
-                className="h-10 border-zay-border rounded-none"
+                className={inputClass}
               />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                Livraison offerte dès (€)
-              </Label>
+            </Field>
+            <Field label="Livraison offerte dès (€)">
               <Input
                 type="number"
                 step="0.01"
@@ -237,15 +338,173 @@ export default function AdminSettingsPage() {
                 placeholder="Vide = jamais"
                 value={store.freeShippingThreshold}
                 onChange={(e) =>
-                  setStore({
-                    ...store,
-                    freeShippingThreshold: sanitizeMoney(e.target.value),
-                  })
+                  set('freeShippingThreshold')(sanitizeMoney(e.target.value))
                 }
-                className="h-10 border-zay-border rounded-none"
+                className={inputClass}
               />
-            </div>
+            </Field>
           </div>
+
+          <Accordion type="multiple" className="border-t border-zay-border">
+            <AccordionItem value="legal" className="px-5 border-b border-zay-border">
+              <AccordionTrigger className="text-[0.65rem] font-bold uppercase tracking-widest hover:no-underline">
+                Informations légales
+              </AccordionTrigger>
+              <AccordionContent className="grid md:grid-cols-2 gap-4 pb-4">
+                <Field label="Raison sociale">
+                  <Input value={store.legalName} onChange={(e) => set('legalName')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Forme juridique">
+                  <Input value={store.legalForm} onChange={(e) => set('legalForm')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Capital social">
+                  <Input value={store.shareCapital} onChange={(e) => set('shareCapital')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="SIRET">
+                  <Input value={store.siret} onChange={(e) => set('siret')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Ville RCS">
+                  <Input value={store.rcsCity} onChange={(e) => set('rcsCity')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="N° TVA">
+                  <Input value={store.vatNumber} onChange={(e) => set('vatNumber')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Adresse légale">
+                  <Textarea value={store.legalAddress} onChange={(e) => set('legalAddress')(e.target.value)} className="border-zay-border rounded-none min-h-[80px]" />
+                </Field>
+                <Field label="Directeur de la publication">
+                  <Input value={store.publicationDirector} onChange={(e) => set('publicationDirector')(e.target.value)} className={inputClass} />
+                </Field>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="contact" className="px-5 border-b border-zay-border">
+              <AccordionTrigger className="text-[0.65rem] font-bold uppercase tracking-widest hover:no-underline">
+                Contact & showroom
+              </AccordionTrigger>
+              <AccordionContent className="grid md:grid-cols-2 gap-4 pb-4">
+                <Field label="Téléphone">
+                  <Input value={store.contactPhone} onChange={(e) => set('contactPhone')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Horaires">
+                  <Textarea value={store.openingHours} onChange={(e) => set('openingHours')(e.target.value)} className="border-zay-border rounded-none min-h-[80px]" />
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Adresse showroom">
+                    <Textarea value={store.showroomAddress} onChange={(e) => set('showroomAddress')(e.target.value)} className="border-zay-border rounded-none min-h-[80px]" />
+                  </Field>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="host" className="px-5 border-b border-zay-border">
+              <AccordionTrigger className="text-[0.65rem] font-bold uppercase tracking-widest hover:no-underline">
+                Hébergeur
+              </AccordionTrigger>
+              <AccordionContent className="grid md:grid-cols-2 gap-4 pb-4">
+                <Field label="Nom">
+                  <Input value={store.hostName} onChange={(e) => set('hostName')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Contact">
+                  <Input value={store.hostContact} onChange={(e) => set('hostContact')(e.target.value)} className={inputClass} />
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Adresse">
+                    <Textarea value={store.hostAddress} onChange={(e) => set('hostAddress')(e.target.value)} className="border-zay-border rounded-none min-h-[80px]" />
+                  </Field>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="mediator" className="px-5 border-b border-zay-border">
+              <AccordionTrigger className="text-[0.65rem] font-bold uppercase tracking-widest hover:no-underline">
+                Médiateur de la consommation
+              </AccordionTrigger>
+              <AccordionContent className="grid md:grid-cols-2 gap-4 pb-4">
+                <Field label="Nom">
+                  <Input value={store.mediatorName} onChange={(e) => set('mediatorName')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="URL (https)">
+                  <Input type="url" value={store.mediatorUrl} onChange={(e) => set('mediatorUrl')(e.target.value)} className={inputClass} />
+                </Field>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="social" className="px-5 border-b border-zay-border">
+              <AccordionTrigger className="text-[0.65rem] font-bold uppercase tracking-widest hover:no-underline">
+                Réseaux sociaux
+              </AccordionTrigger>
+              <AccordionContent className="grid md:grid-cols-2 gap-4 pb-4">
+                <Field label="Instagram (https)">
+                  <Input type="url" value={store.instagramUrl} onChange={(e) => set('instagramUrl')(e.target.value)} className={inputClass} />
+                </Field>
+                <Field label="TikTok (https)">
+                  <Input type="url" value={store.tiktokUrl} onChange={(e) => set('tiktokUrl')(e.target.value)} className={inputClass} />
+                </Field>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="event" className="px-5">
+              <AccordionTrigger className="text-[0.65rem] font-bold uppercase tracking-widest hover:no-underline">
+                Événement à la une
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 pb-4">
+                <p className="text-[0.65rem] text-zay-text-muted italic">
+                  L&apos;événement disparaît automatiquement après sa date (s&apos;il
+                  n&apos;y a pas de titre, la section n&apos;apparaît pas sur
+                  l&apos;accueil).
+                </p>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Field label="Titre">
+                    <Input value={store.eventTitle} onChange={(e) => set('eventTitle')(e.target.value)} className={inputClass} />
+                  </Field>
+                  <Field label="Sous-titre">
+                    <Input value={store.eventSubtitle} onChange={(e) => set('eventSubtitle')(e.target.value)} className={inputClass} />
+                  </Field>
+                  <Field label="Date">
+                    <Input type="datetime-local" value={store.eventDate} onChange={(e) => set('eventDate')(e.target.value)} className={inputClass} />
+                  </Field>
+                  <Field label="Lien (https)">
+                    <Input type="url" value={store.eventLink} onChange={(e) => set('eventLink')(e.target.value)} className={inputClass} />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="Image (URL https)">
+                      <Input type="url" value={store.eventImageUrl} onChange={(e) => set('eventImageUrl')(e.target.value)} className={inputClass} />
+                    </Field>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Field label="Partenaires">
+                      <Input value={store.eventPartners} onChange={(e) => set('eventPartners')(e.target.value)} className={inputClass} />
+                    </Field>
+                  </div>
+                </div>
+                {(store.eventTitle.trim() || store.eventImageUrl.trim()) && (
+                  <div className="border border-zay-border p-4 space-y-2 bg-zay-gray/40">
+                    <p className="text-[0.55rem] uppercase tracking-widest font-bold text-zay-text-muted">
+                      Aperçu
+                    </p>
+                    {store.eventImageUrl.trim() && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resolveMediaUrl(store.eventImageUrl.trim())}
+                        alt=""
+                        className="w-full max-h-40 object-cover"
+                      />
+                    )}
+                    <p className="font-headline italic text-lg">
+                      {store.eventTitle || 'Sans titre'}
+                    </p>
+                    {store.eventSubtitle && (
+                      <p className="text-sm text-zay-text-muted">
+                        {store.eventSubtitle}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
           <div className="border-t border-zay-border px-5 py-3">
             <Button
               type="submit"
@@ -274,51 +533,39 @@ export default function AdminSettingsPage() {
         <form onSubmit={handleSaveProfile}>
           <div className="px-5 py-4 space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                  Prénom
-                </Label>
+              <Field label="Prénom">
                 <Input
                   value={form.firstName}
                   onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                  className="h-10 border-zay-border rounded-none"
+                  className={inputClass}
                 />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                  Nom
-                </Label>
+              </Field>
+              <Field label="Nom">
                 <Input
                   value={form.lastName}
                   onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  className="h-10 border-zay-border rounded-none"
+                  className={inputClass}
                 />
-              </div>
+              </Field>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                  Email
-                </Label>
+              <Field label="Email">
                 <Input
                   type="email"
                   value={form.email}
                   disabled
-                  className="h-10 border-zay-border rounded-none opacity-70"
+                  className={cn(inputClass, 'opacity-70')}
                 />
                 <p className="text-[0.55rem] text-zay-text-muted italic">Lecture seule</p>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                  Téléphone
-                </Label>
+              </Field>
+              <Field label="Téléphone">
                 <Input
                   type="tel"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="h-10 border-zay-border rounded-none"
+                  className={inputClass}
                 />
-              </div>
+              </Field>
             </div>
           </div>
           <div className="border-t border-zay-border px-5 py-3">
@@ -337,53 +584,49 @@ export default function AdminSettingsPage() {
         <AdminBusyOverlay show={pwdSaving} label="Mise à jour…" />
         <div className="flex items-center gap-3 px-5 py-4 border-b border-zay-border">
           <ShieldCheck size={16} className="text-primary" />
-          <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">Sécurité</h2>
+          <h2 className="text-[0.65rem] font-bold uppercase tracking-widest">
+            Sécurité
+          </h2>
         </div>
         <form onSubmit={handleChangePassword}>
           <div className="px-5 py-4 space-y-4">
-            <div className="space-y-1">
-              <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                Mot de passe actuel
-              </Label>
+            <Field label="Mot de passe actuel">
               <Input
                 type="password"
                 required
                 minLength={8}
                 value={pwd.currentPassword}
-                onChange={(e) => setPwd({ ...pwd, currentPassword: e.target.value })}
-                className="h-10 border-zay-border rounded-none"
+                onChange={(e) =>
+                  setPwd({ ...pwd, currentPassword: e.target.value })
+                }
+                className={inputClass}
               />
-            </div>
+            </Field>
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                  Nouveau
-                </Label>
+              <Field label="Nouveau">
                 <Input
                   type="password"
                   required
                   minLength={8}
                   value={pwd.newPassword}
-                  onChange={(e) => setPwd({ ...pwd, newPassword: e.target.value })}
-                  className="h-10 border-zay-border rounded-none"
+                  onChange={(e) =>
+                    setPwd({ ...pwd, newPassword: e.target.value })
+                  }
+                  className={inputClass}
                 />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
-                  Confirmer
-                </Label>
+              </Field>
+              <Field label="Confirmer">
                 <Input
                   type="password"
                   required
                   minLength={8}
                   value={pwd.confirmPassword}
-                  onChange={(e) => setPwd({ ...pwd, confirmPassword: e.target.value })}
-                  className={cn(
-                    'h-10 border-zay-border rounded-none',
-                    pwdMismatch && 'border-red-400',
-                  )}
+                  onChange={(e) =>
+                    setPwd({ ...pwd, confirmPassword: e.target.value })
+                  }
+                  className={cn(inputClass, pwdMismatch && 'border-red-400')}
                 />
-              </div>
+              </Field>
             </div>
             {pwdMismatch && (
               <p className="text-[0.65rem] text-red-500">

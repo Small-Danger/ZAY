@@ -88,6 +88,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return `${CATALOG_PREFIX}subcategories:${categoryId}`;
   }
 
+  storeSettingsPublicKey() {
+    return 'zay:store-settings:public';
+  }
+
+  async invalidateStoreSettingsPublic() {
+    await this.client.del(this.storeSettingsPublicKey());
+  }
+
   async invalidateCatalog() {
     const keys: string[] = [];
     let cursor = '0';

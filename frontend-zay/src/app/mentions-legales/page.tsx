@@ -1,11 +1,27 @@
 import { LegalPageShell } from '@/components/legal/LegalPageShell';
+import {
+  displayOrPending,
+  getPublicSettings,
+} from '@/lib/api/store-settings-public';
 
-export default function MentionsLegalesPage() {
+export const revalidate = 60;
+
+export default async function MentionsLegalesPage() {
+  const s = await getPublicSettings();
+  const email = s.contactEmail?.trim() || null;
+  const hostLine = [
+    displayOrPending(s.hostName),
+    s.hostAddress?.trim() || null,
+    s.hostContact?.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(' — ');
+
   return (
     <LegalPageShell
       eyebrow="Légal"
       title="Mentions légales"
-      updatedAt="4 août 2026"
+      updatedAt="21 novembre 2026"
       intro="Conformément aux dispositions de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l’économie numérique, les présentes mentions légales précisent l’identité des différents intervenants dans le cadre de la réalisation et du suivi du site ZAY Atelier."
       related={[
         { label: 'CGV', href: '/cgv' },
@@ -19,19 +35,21 @@ export default function MentionsLegalesPage() {
             'Le site est édité par ZAY Atelier, marque de prêt-à-porter féminin.',
           ],
           bullets: [
-            'Dénomination : ZAY Atelier (à compléter avec la raison sociale exacte)',
-            'Forme juridique / capital : à compléter',
-            'Siège social : à compléter',
-            'RCS / SIRET : à compléter',
-            'N° TVA intracommunautaire : à compléter',
-            'E-mail : conciergerie@zay-atelier.com',
-            'Directeur de la publication : à compléter',
+            `Raison sociale : ${displayOrPending(s.legalName)}`,
+            `Forme juridique : ${displayOrPending(s.legalForm)}`,
+            `Capital social : ${displayOrPending(s.shareCapital)}`,
+            `Siège social : ${displayOrPending(s.legalAddress)}`,
+            `SIRET : ${displayOrPending(s.siret)}`,
+            `RCS : ${displayOrPending(s.rcsCity)}`,
+            `N° TVA intracommunautaire : ${displayOrPending(s.vatNumber)}`,
+            `E-mail : ${email ?? 'Information en cours de mise à jour'}`,
+            `Directeur de la publication : ${displayOrPending(s.publicationDirector)}`,
           ],
         },
         {
           title: '2. Hébergement',
           paragraphs: [
-            'Le site est hébergé par un prestataire d’hébergement cloud. Les coordonnées détaillées de l’hébergeur seront précisées ici avant la mise en production publique (nom, adresse, téléphone).',
+            `Le site est hébergé par : ${hostLine}.`,
           ],
         },
         {
@@ -62,7 +80,9 @@ export default function MentionsLegalesPage() {
         {
           title: '7. Droit applicable',
           paragraphs: [
-            'Les présentes mentions légales sont régies par le droit français. Pour toute réclamation : conciergerie@zay-atelier.com ou via la page Contact.',
+            `Les présentes mentions légales sont régies par le droit français. Pour toute réclamation : ${
+              email ?? 'via la page Contact'
+            }${email ? ' ou via la page Contact' : ''}.`,
           ],
         },
       ]}

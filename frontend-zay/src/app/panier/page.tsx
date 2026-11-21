@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { notifyError } from '@/lib/notify';
 import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { checkoutPath } from '@/lib/auth/session';
+import { formatEUR } from '@/lib/format';
 
 export default function PanierPage() {
   const [mounted, setMounted] = useState(false);
@@ -71,7 +72,7 @@ export default function PanierPage() {
 
   const subtotal = totalPrice();
   const total = finalPrice();
-  const installmentPrice = (total / 3).toFixed(2);
+  const installmentPrice = formatEUR(total / 3);
 
   const handleApplyPromo = async () => {
     if (!promoInput.trim() || promoLoading) return;
@@ -172,7 +173,7 @@ export default function PanierPage() {
                             )}
                           </div>
                           <div className="text-right">
-                            <p className="text-xs md:text-sm font-bold">€{item.price.toFixed(2)}</p>
+                            <p className="text-xs md:text-sm font-bold">{formatEUR(item.price)}</p>
                           </div>
                         </div>
 
@@ -209,7 +210,7 @@ export default function PanierPage() {
                           
                           <div className="flex items-center gap-4 md:gap-6">
                             <div className="text-right">
-                              <p className="text-sm md:text-base font-bold text-primary">€{(item.price * item.quantity).toFixed(2)}</p>
+                              <p className="text-sm md:text-base font-bold text-primary">{formatEUR(item.price * item.quantity)}</p>
                             </div>
                             <button 
                               onClick={() => removeItem(item.id, item.size, item.color)}
@@ -241,7 +242,7 @@ export default function PanierPage() {
                   <div className="space-y-5 md:space-y-6">
                     <div className="flex justify-between text-zay-text-muted tracking-[0.1em] text-[0.65rem] md:text-[0.7rem] uppercase font-bold">
                       <span>Sous-total</span>
-                      <span className="text-zay-text">€{subtotal.toFixed(2)}</span>
+                      <span className="text-zay-text">{formatEUR(subtotal)}</span>
                     </div>
 
                     <div className="space-y-3">
@@ -266,7 +267,7 @@ export default function PanierPage() {
                       {promoCode && (
                         <div className="flex justify-between items-center text-[0.6rem] uppercase tracking-widest">
                           <button type="button" onClick={clearPromo} className="text-primary underline font-bold">
-                            {promoCode} (−€{discountAmount.toFixed(2)}) · retirer
+                            {promoCode} (−{formatEUR(discountAmount)}) · retirer
                           </button>
                         </div>
                       )}
@@ -279,7 +280,7 @@ export default function PanierPage() {
 
                     <div className="pt-4 border-t border-zay-border flex justify-between items-end">
                       <span className="text-[0.65rem] md:text-xs tracking-[0.2em] md:tracking-[0.25em] font-bold uppercase">Total TTC</span>
-                      <span className="text-2xl md:text-3xl font-headline font-bold">€{total.toFixed(2)}</span>
+                      <span className="text-2xl md:text-3xl font-headline font-bold">{formatEUR(total)}</span>
                     </div>
 
                     <div className="bg-zay-main p-4 rounded-sm space-y-1">
@@ -288,7 +289,7 @@ export default function PanierPage() {
                         <p className="text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-widest">Paiement 3× sans frais</p>
                       </div>
                       <p className="text-[0.55rem] md:text-[0.6rem] text-zay-text-muted italic font-bold">
-                        ou 3 mensualités de <span className="text-zay-text font-bold">€{installmentPrice}</span> avec Klarna ou Alma.
+                        ou en 3× avec Klarna — <span className="text-zay-text font-bold">{installmentPrice}</span>
                       </p>
                     </div>
                   </div>
@@ -301,7 +302,7 @@ export default function PanierPage() {
                   </Button>
 
                   <div className="flex justify-center gap-3 md:gap-4 opacity-50 pt-2 grayscale">
-                     <span className="text-[0.5rem] md:text-[0.55rem] font-bold tracking-widest uppercase">Visa · MC · Klarna · Alma</span>
+                     <span className="text-[0.5rem] md:text-[0.55rem] font-bold tracking-widest uppercase">Carte bancaire · Apple Pay · Klarna</span>
                   </div>
                 </div>
               </div>

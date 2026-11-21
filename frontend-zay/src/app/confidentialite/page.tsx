@@ -1,11 +1,18 @@
 import { LegalPageShell } from '@/components/legal/LegalPageShell';
+import { getPublicSettings } from '@/lib/api/store-settings-public';
 
-export default function ConfidentialitePage() {
+export const revalidate = 60;
+
+export default async function ConfidentialitePage() {
+  const s = await getPublicSettings();
+  const email = s.contactEmail?.trim() || 'via la page Contact';
+  const hostName = s.hostName?.trim() || 'Railway Corporation';
+
   return (
     <LegalPageShell
       eyebrow="Légal"
       title="Politique de confidentialité"
-      updatedAt="4 août 2026"
+      updatedAt="21 novembre 2026"
       intro="ZAY Atelier accorde une importance particulière à la protection de vos données personnelles. La présente politique décrit les informations collectées, leurs finalités et vos droits."
       related={[
         { label: 'CGV', href: '/cgv' },
@@ -16,7 +23,7 @@ export default function ConfidentialitePage() {
         {
           title: '1. Responsable du traitement',
           paragraphs: [
-            'Le responsable du traitement des données est ZAY Atelier. Pour toute question relative à vos données : conciergerie@zay-atelier.com.',
+            `Le responsable du traitement des données est ZAY Atelier. Pour toute question relative à vos données : ${email}.`,
           ],
         },
         {
@@ -59,33 +66,45 @@ export default function ConfidentialitePage() {
           ],
         },
         {
-          title: '6. Durée de conservation',
+          title: '6. Sous-traitants et transferts hors UE',
+          paragraphs: [
+            'Certains prestataires peuvent traiter des données hors de l’Union européenne. Dans ce cas, des garanties appropriées sont mises en place (clauses contractuelles types de la Commission européenne et/ou Data Privacy Framework, selon le prestataire) :',
+          ],
+          bullets: [
+            `${hostName} — hébergement de l’application et de l’infrastructure (États-Unis)`,
+            'Cloudinary — stockage et diffusion des images produits',
+            'Stripe et Klarna — traitement des paiements',
+            'Resend — envoi des e-mails transactionnels (confirmation, expédition, contact)',
+          ],
+        },
+        {
+          title: '7. Durée de conservation',
           paragraphs: [
             'Les données de compte et de commande sont conservées pendant la durée de la relation commerciale, puis archivées le temps requis par les obligations légales (notamment comptables). Les messages de contact sont conservés le temps nécessaire au traitement de la demande. Les cookies ont des durées limitées selon leur type.',
           ],
         },
         {
-          title: '7. Cookies',
+          title: '8. Cookies',
           paragraphs: [
             'Le site utilise des cookies techniques indispensables au fonctionnement (session, panier, préférences). Des cookies de mesure d’audience ou marketing ne sont déposés qu’avec votre consentement lorsque applicable.',
             'Vous pouvez configurer votre navigateur pour refuser tout ou partie des cookies ; certaines fonctionnalités du site peuvent alors être limitées.',
           ],
         },
         {
-          title: '8. Vos droits',
+          title: '9. Vos droits',
           paragraphs: [
             'Conformément au RGPD et à la loi Informatique et Libertés, vous disposez d’un droit d’accès, de rectification, d’effacement, de limitation, d’opposition, et de portabilité lorsque applicable. Vous pouvez également définir des directives relatives au sort de vos données après votre décès.',
-            'Pour exercer vos droits : conciergerie@zay-atelier.com. Vous pouvez introduire une réclamation auprès de la CNIL (www.cnil.fr).',
+            `Pour exercer vos droits : ${email}. Vous pouvez introduire une réclamation auprès de la CNIL (www.cnil.fr).`,
           ],
         },
         {
-          title: '9. Sécurité',
+          title: '10. Sécurité',
           paragraphs: [
             'Nous mettons en œuvre des mesures techniques et organisationnelles raisonnables pour protéger vos données contre l’accès non autorisé, la perte ou l’altération. Aucun système n’étant totalement infaillible, nous vous invitons à utiliser un mot de passe robuste et unique.',
           ],
         },
         {
-          title: '10. Modifications',
+          title: '11. Modifications',
           paragraphs: [
             'La présente politique peut être mise à jour. La date de dernière mise à jour figure en tête de page. En cas de changement substantiel, une information pourra être publiée sur le site.',
           ],

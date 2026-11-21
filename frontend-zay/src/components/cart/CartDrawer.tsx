@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { checkoutPath } from '@/lib/auth/session';
 import { Button } from '@/components/ui/button';
 import { MediaImage } from '@/components/ui/media-image';
+import { formatEUR } from '@/lib/format';
 
 export const CartDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const { items, removeItem, totalPrice } = useCartStore();
@@ -75,7 +76,7 @@ export const CartDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                           : ''}
                         {' '}• Qté : {item.quantity}
                       </p>
-                      <p className="text-[0.65rem] font-bold mt-2">€{(item.price * item.quantity).toFixed(2)}</p>
+                      <p className="text-[0.65rem] font-bold mt-2">{formatEUR(item.price * item.quantity)}</p>
                     </div>
                   </div>
                 ))
@@ -86,7 +87,7 @@ export const CartDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
               <div className="p-6 border-t border-zay-border bg-zay-main space-y-6">
                 <div className="flex justify-between items-end">
                   <span className="text-[0.65rem] font-bold uppercase tracking-widest">Total</span>
-                  <span className="text-xl font-headline">€{totalPrice().toFixed(2)}</span>
+                  <span className="text-xl font-headline">{formatEUR(totalPrice())}</span>
                 </div>
                 <div className="space-y-3">
                   <Button asChild onClick={onClose} className="w-full bg-primary hover:bg-zay-text text-white py-6 rounded-none text-[0.65rem] tracking-[0.2em] font-bold uppercase">

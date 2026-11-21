@@ -1,0 +1,25 @@
+-- AlterTable
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "legal_name" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "legal_form" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "share_capital" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "siret" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "rcs_city" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "vat_number" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "legal_address" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "publication_director" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "contact_phone" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "showroom_address" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "opening_hours" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "host_name" TEXT NOT NULL DEFAULT 'Railway Corporation';
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "host_address" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "host_contact" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "mediator_name" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "mediator_url" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "instagram_url" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "tiktok_url" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "event_title" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "event_subtitle" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "event_date" TIMESTAMP(3);
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "event_image_url" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "event_link" TEXT;
+ALTER TABLE "store_settings" ADD COLUMN IF NOT EXISTS "event_partners" TEXT;

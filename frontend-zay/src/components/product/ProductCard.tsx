@@ -7,6 +7,7 @@ import { Heart } from 'lucide-react';
 import { useIsWishlisted, useWishlistStore } from '@/store/useWishlistStore';
 import { cn } from '@/lib/utils';
 import { MediaImage } from '@/components/ui/media-image';
+import { formatEUR } from '@/lib/format';
 
 interface ProductCardProps {
   id: string;
@@ -154,9 +155,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {name}
         </h3>
         <div className="flex items-center gap-3">
-          <span className="text-sm md:text-base font-bold font-sans">{price} €</span>
+          <span className="text-sm md:text-base font-bold font-sans">{formatEUR(price)}</span>
           {originalPrice != null && originalPrice > price && (
-            <span className="text-xs md:text-sm text-muted-foreground line-through italic font-light opacity-50">{originalPrice} €</span>
+            <span className="text-xs md:text-sm text-muted-foreground line-through italic font-light opacity-50">{formatEUR(originalPrice)}</span>
           )}
         </div>
       </div>

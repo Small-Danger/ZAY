@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { notify, notifyError } from '@/lib/notify';
 import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
+import { formatEUR } from '@/lib/format';
 
 const STEPS = [
   { id: 1, name: 'Livraison' },
@@ -440,7 +441,7 @@ export default function CheckoutPage() {
                             : ''}
                           {' '}• Qté : {item.quantity}
                         </p>
-                        <p className="text-[0.65rem] font-light">€{(item.price * item.quantity).toFixed(2)}</p>
+                        <p className="text-[0.65rem] font-light">{formatEUR(item.price * item.quantity)}</p>
                       </div>
                     </div>
                   ))}
@@ -449,12 +450,12 @@ export default function CheckoutPage() {
                 <div className="space-y-4 pt-6 border-t border-zay-border">
                   <div className="flex justify-between text-xs tracking-widest text-zay-text-muted uppercase font-light">
                     <span>Sous-total</span>
-                    <span>€{totalPrice().toFixed(2)}</span>
+                    <span>{formatEUR(totalPrice())}</span>
                   </div>
                   {discountAmount > 0 && (
                     <div className="flex justify-between text-xs tracking-widest text-primary uppercase font-light">
                       <span>Promo {promoCode}</span>
-                      <span>−€{discountAmount.toFixed(2)}</span>
+                      <span>−{formatEUR(discountAmount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-xs tracking-widest text-zay-text-muted uppercase font-light">
@@ -463,7 +464,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex justify-between items-end pt-4 border-t border-zay-border">
                     <span className="text-xs tracking-[0.2em] font-light uppercase">Total</span>
-                    <span className="text-2xl font-headline font-light">€{finalPrice().toFixed(2)}</span>
+                    <span className="text-2xl font-headline font-light">{formatEUR(finalPrice())}</span>
                   </div>
                 </div>
 

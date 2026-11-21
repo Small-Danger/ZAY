@@ -1,12 +1,45 @@
 import { LegalPageShell } from '@/components/legal/LegalPageShell';
+import { getPublicSettings } from '@/lib/api/store-settings-public';
+import { formatEUR } from '@/lib/format';
+import { SITE_URL } from '@/lib/site';
 
-export default function CgvPage() {
+export const revalidate = 60;
+
+export default async function CgvPage() {
+  const s = await getPublicSettings();
+  const siteHost = SITE_URL.replace(/^https?:\/\//, '');
+  const threshold =
+    s.freeShippingThreshold != null && Number(s.freeShippingThreshold) > 0
+      ? formatEUR(s.freeShippingThreshold)
+      : null;
+  const shipping = formatEUR(s.shippingCost);
+  const email = s.contactEmail?.trim();
+
+  const mediationParagraphs =
+    s.mediatorName?.trim() || s.mediatorUrl?.trim()
+      ? [
+          `Conformément aux dispositions du Code de la consommation concernant le règlement amiable des litiges, ZAY Atelier propose un dispositif de médiation. Médiateur : ${
+            s.mediatorName?.trim() || 'à préciser'
+          }${
+            s.mediatorUrl?.trim()
+              ? ` — ${s.mediatorUrl.trim()}`
+              : ''
+          }.`,
+        ]
+      : [
+          'Conformément aux dispositions du Code de la consommation concernant le règlement amiable des litiges, le Client peut recourir gratuitement à un médiateur de la consommation. Les coordonnées du médiateur seront communiquées sur demande via la page Contact.',
+        ];
+
+  const shippingParagraph = threshold
+    ? `Les frais de livraison standard sont de ${shipping}. La livraison est offerte en France métropolitaine pour toute commande supérieure à ${threshold} TTC, sauf mention contraire sur le site.`
+    : `Les frais de livraison standard sont de ${shipping}. Les conditions de livraison offerte, le cas échéant, sont indiquées sur le site avant le paiement.`;
+
   return (
     <LegalPageShell
       eyebrow="Légal"
       title="Conditions Générales de Vente"
-      updatedAt="4 août 2026"
-      intro="Les présentes Conditions Générales de Vente (CGV) régissent les ventes de produits proposés par ZAY Atelier sur le site zay-atelier.com. Toute commande implique l’acceptation sans réserve des présentes CGV."
+      updatedAt="21 novembre 2026"
+      intro={`Les présentes Conditions Générales de Vente (CGV) régissent les ventes de produits proposés par ZAY Atelier sur le site ${siteHost}. Toute commande implique l’acceptation sans réserve des présentes CGV.`}
       related={[
         { label: 'Confidentialité', href: '/confidentialite' },
         { label: 'Mentions légales', href: '/mentions-legales' },
@@ -30,7 +63,7 @@ export default function CgvPage() {
           title: '3. Prix',
           paragraphs: [
             'Les prix sont indiqués en euros, toutes taxes comprises (TTC). Le Vendeur se réserve le droit de modifier ses prix à tout moment ; les produits sont facturés sur la base des tarifs en vigueur au moment de la validation de la commande.',
-            'Les frais de livraison sont précisés avant le paiement. La livraison est offerte en France métropolitaine pour toute commande supérieure à 120 € TTC, sauf mention contraire sur le site.',
+            shippingParagraph,
           ],
         },
         {
@@ -43,7 +76,7 @@ export default function CgvPage() {
         {
           title: '5. Paiement',
           paragraphs: [
-            'Le paiement s’effectue en ligne par les moyens proposés au moment du checkout (cartes bancaires, et le cas échéant Apple Pay, Klarna, Alma). La commande est traitée après validation du paiement.',
+            'Le paiement s’effectue en ligne par les moyens proposés au moment du checkout (carte bancaire, Apple Pay, Klarna). La commande est traitée après validation du paiement.',
             'Le Vendeur n’a jamais accès aux données bancaires complètes du Client lorsque le paiement est traité par un prestataire sécurisé.',
           ],
         },
@@ -87,10 +120,16 @@ export default function CgvPage() {
           ],
         },
         {
-          title: '12. Droit applicable',
+          title: '12. Médiation',
+          paragraphs: mediationParagraphs,
+        },
+        {
+          title: '13. Droit applicable',
           paragraphs: [
             'Les présentes CGV sont soumises au droit français. En cas de litige, une solution amiable sera recherchée en priorité. À défaut, les tribunaux français compétents seront saisis, sous réserve des dispositions protectrices applicables au consommateur.',
-            'Pour toute question : conciergerie@zay-atelier.com ou via la page Contact.',
+            `Pour toute question : ${email ?? 'via la page Contact'}${
+              email ? ' ou via la page Contact' : ''
+            }.`,
           ],
         },
       ]}

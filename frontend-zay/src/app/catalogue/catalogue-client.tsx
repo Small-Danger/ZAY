@@ -44,6 +44,7 @@ import type { ApiCategory, UiProduct } from '@/lib/api';
 import { MediaImage } from '@/components/ui/media-image';
 import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 import { cn } from '@/lib/utils';
+import { formatEUR } from '@/lib/format';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const RingIcon = ({ className }: { className?: string }) => (
@@ -351,7 +352,7 @@ function CataloguePageInner({
       <section className="space-y-8">
         <div className="flex justify-between items-end">
           <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-zay-text-muted">PRIX</h4>
-          <span className="text-[11px] font-light">{priceRange[0]}€ - {priceRange[1]}€</span>
+          <span className="text-[11px] font-light">{formatEUR(priceRange[0])} - {formatEUR(priceRange[1])}</span>
         </div>
         <Slider 
           defaultValue={[0, 500]} 
@@ -458,7 +459,7 @@ function CataloguePageInner({
                     <div className="min-w-0">
                       <p className="text-xs font-bold uppercase tracking-widest truncate">{p.name}</p>
                       <p className="text-[0.6rem] text-zay-text-muted italic mt-1">
-                        {p.category} · {p.price.toFixed(2)}€
+                        {p.category} · {formatEUR(p.price)}
                       </p>
                     </div>
                   </button>

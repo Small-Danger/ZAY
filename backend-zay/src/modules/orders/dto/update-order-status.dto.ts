@@ -1,4 +1,11 @@
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 import { OrderStatus } from '@prisma/client';
 
 export class UpdateOrderStatusDto {
@@ -16,7 +23,8 @@ export class UpdateOrderStatusDto {
   trackingCode?: string;
 
   @IsOptional()
-  @IsString()
+  @ValidateIf((_, v) => v !== null && v !== undefined && v !== '')
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   @MaxLength(300)
   trackingUrl?: string;
 }

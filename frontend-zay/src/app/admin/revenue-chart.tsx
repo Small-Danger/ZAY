@@ -34,7 +34,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
           axisLine={false}
           tickLine={false}
           tick={{ fontSize: 10, fill: '#8A7068', fontWeight: 'bold' }}
-          tickFormatter={(value) => `${value}€`}
+          tickFormatter={(value) => formatMoney(Number(value ?? 0))}
         />
         <Tooltip
           contentStyle={{

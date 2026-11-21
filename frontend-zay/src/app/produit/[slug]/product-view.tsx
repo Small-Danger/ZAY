@@ -34,6 +34,7 @@ import { useIsWishlisted, useWishlistStore } from '@/store/useWishlistStore';
 import { cn } from '@/lib/utils';
 import { notify } from '@/lib/notify';
 import { SIZE_GUIDE } from '@/lib/size-guide';
+import { formatEUR } from '@/lib/format';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProduct } from '@/hooks/use-products';
 import type { UiProduct } from '@/lib/api';
@@ -232,7 +233,7 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
     );
   }
 
-  const installmentPrice = (product.price / 3).toFixed(2);
+  const installmentPrice = formatEUR(product.price / 3);
   const canAdd = !fullyOut && availableStock > 0;
 
   return (
@@ -311,20 +312,19 @@ export function ProductView({ initialProduct }: { initialProduct: UiProduct }) {
 
                 <div className="flex items-center gap-4">
                   <span className="text-2xl font-bold font-sans text-zay-text">
-                    {product.price} €
+                    {formatEUR(product.price)}
                   </span>
                   {product.originalPrice != null &&
                     product.originalPrice > product.price && (
                       <span className="text-lg text-muted-foreground line-through font-sans font-light opacity-50">
-                        {product.originalPrice} €
+                        {formatEUR(product.originalPrice)}
                       </span>
                     )}
                 </div>
 
                 <p className="text-[11px] text-muted-foreground italic tracking-wide font-bold">
-                  ou 3×{' '}
-                  <span className="text-zay-text">{installmentPrice} €</span>{' '}
-                  sans frais — Klarna · Alma
+                  ou en 3× avec Klarna —{' '}
+                  <span className="text-zay-text">{installmentPrice}</span>
                 </p>
               </div>
 
