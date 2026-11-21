@@ -354,7 +354,38 @@ model StoreSettings {
   contactEmail          String?   @map("contact_email")
   shippingCost          Decimal   @default(0) @map("shipping_cost") @db.Decimal(10, 2)
   freeShippingThreshold Decimal?  @map("free_shipping_threshold") @db.Decimal(10, 2)
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  legalName           String? @map("legal_name")
+  legalForm           String? @map("legal_form")
+  shareCapital        String? @map("share_capital")
+  siret               String?
+  rcsCity             String? @map("rcs_city")
+  vatNumber           String? @map("vat_number")
+  legalAddress        String? @map("legal_address")
+  publicationDirector String? @map("publication_director")
+
+  contactPhone     String? @map("contact_phone")
+  showroomAddress  String? @map("showroom_address")
+  openingHours     String? @map("opening_hours")
+
+  hostName    String  @default("Railway Corporation") @map("host_name")
+  hostAddress String? @map("host_address")
+  hostContact String? @map("host_contact")
+
+  mediatorName String? @map("mediator_name")
+  mediatorUrl  String? @map("mediator_url")
+
+  instagramUrl String? @map("instagram_url")
+  tiktokUrl    String? @map("tiktok_url")
+
+  eventTitle    String?   @map("event_title")
+  eventSubtitle String?   @map("event_subtitle")
+  eventDate     DateTime? @map("event_date")
+  eventImageUrl String?   @map("event_image_url")
+  eventLink     String?   @map("event_link")
+  eventPartners String?   @map("event_partners")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("store_settings")
 }

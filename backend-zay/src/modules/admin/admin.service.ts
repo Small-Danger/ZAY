@@ -1,9 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ContactStatus, OrderStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import { UpdateStoreSettingsDto } from './dto/store-settings.dto';
+import {
+  toPublicStoreSettings,
+  type PublicStoreSettings,
+} from './store-settings.public';
 
 const LOW_STOCK_THRESHOLD = 5;
+const STORE_SETTINGS_PUBLIC_TTL = 60;
 
 const LOW_STOCK_WHERE: Prisma.ProductWhereInput = {
   OR: [
@@ -12,9 +18,21 @@ const LOW_STOCK_WHERE: Prisma.ProductWhereInput = {
   ],
 };
 
+function nullableTrim(
+  value: string | null | undefined,
+): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async getStoreSettings() {
     const existing = await this.prisma.storeSettings.findUnique({
@@ -26,9 +44,24 @@ export class AdminService {
     });
   }
 
+  async getPublicStoreSettings(): Promise<PublicStoreSettings> {
+    const cacheKey = this.redis.storeSettingsPublicKey();
+    const cached = await this.redis.getJson<PublicStoreSettings>(cacheKey);
+    if (cached) return cached;
+
+    const settings = await this.getStoreSettings();
+    const publicSettings = toPublicStoreSettings(settings);
+    await this.redis.setJson(
+      cacheKey,
+      publicSettings,
+      STORE_SETTINGS_PUBLIC_TTL,
+    );
+    return publicSettings;
+  }
+
   async updateStoreSettings(dto: UpdateStoreSettingsDto) {
     await this.getStoreSettings();
-    return this.prisma.storeSettings.update({
+    const updated = await this.prisma.storeSettings.update({
       where: { id: 1 },
       data: {
         storeName: dto.storeName?.trim(),
@@ -41,8 +74,42 @@ export class AdminService {
           dto.freeShippingThreshold === undefined
             ? undefined
             : dto.freeShippingThreshold,
+        legalName: nullableTrim(dto.legalName),
+        legalForm: nullableTrim(dto.legalForm),
+        shareCapital: nullableTrim(dto.shareCapital),
+        siret: nullableTrim(dto.siret),
+        rcsCity: nullableTrim(dto.rcsCity),
+        vatNumber: nullableTrim(dto.vatNumber),
+        legalAddress: nullableTrim(dto.legalAddress),
+        publicationDirector: nullableTrim(dto.publicationDirector),
+        contactPhone: nullableTrim(dto.contactPhone),
+        showroomAddress: nullableTrim(dto.showroomAddress),
+        openingHours: nullableTrim(dto.openingHours),
+        hostName:
+          dto.hostName === undefined
+            ? undefined
+            : dto.hostName?.trim() || 'Railway Corporation',
+        hostAddress: nullableTrim(dto.hostAddress),
+        hostContact: nullableTrim(dto.hostContact),
+        mediatorName: nullableTrim(dto.mediatorName),
+        mediatorUrl: nullableTrim(dto.mediatorUrl),
+        instagramUrl: nullableTrim(dto.instagramUrl),
+        tiktokUrl: nullableTrim(dto.tiktokUrl),
+        eventTitle: nullableTrim(dto.eventTitle),
+        eventSubtitle: nullableTrim(dto.eventSubtitle),
+        eventDate:
+          dto.eventDate === undefined
+            ? undefined
+            : dto.eventDate
+              ? new Date(dto.eventDate)
+              : null,
+        eventImageUrl: nullableTrim(dto.eventImageUrl),
+        eventLink: nullableTrim(dto.eventLink),
+        eventPartners: nullableTrim(dto.eventPartners),
       },
     });
+    await this.redis.invalidateStoreSettingsPublic();
+    return updated;
   }
 
   async getStats() {
