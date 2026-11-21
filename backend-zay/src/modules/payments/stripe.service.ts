@@ -202,8 +202,28 @@ export class StripeService {
     };
   }
 
-  async refundPayment(paymentIntentId: string): Promise<void> {
-    await this.stripe().refunds.create({ payment_intent: paymentIntentId });
+  async refundPayment(
+    paymentIntentId: string,
+    orderId: string,
+  ): Promise<void> {
+    try {
+      await this.stripe().refunds.create(
+        { payment_intent: paymentIntentId },
+        { idempotencyKey: `refund-order-${orderId}` },
+      );
+    } catch (err) {
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code: string }).code)
+          : '';
+      if (code === 'charge_already_refunded') {
+        this.logger.warn(
+          `Remboursement déjà effectué pour order=${orderId} pi=${paymentIntentId}`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 
   constructWebhookEvent(rawBody: Buffer, signature: string): Stripe.Event {

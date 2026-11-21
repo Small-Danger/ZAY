@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
 import { OrdersService } from './orders.service';
 import { StripeService } from '../payments/stripe.service';
@@ -33,6 +34,7 @@ describe('OrdersService — paiement Stripe', () => {
       findFirst: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
     };
     product: {
       findUnique: jest.Mock;
@@ -93,12 +95,30 @@ describe('OrdersService — paiement Stripe', () => {
     ...overrides,
   });
 
+  const mockStockOk = () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 'prod-1',
+      name: 'Robe',
+      stock: 5,
+      variants: [{ id: 'var-1', stock: 5 }],
+    });
+    prisma.productVariant.update.mockResolvedValue({
+      id: 'var-1',
+      stock: 4,
+    });
+    prisma.productVariant.findMany.mockResolvedValue([
+      { id: 'var-1', stock: 4 },
+    ]);
+    prisma.product.update.mockResolvedValue({});
+  };
+
   beforeEach(() => {
     prisma = {
       order: {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       product: {
         findUnique: jest.fn(),
@@ -185,20 +205,7 @@ describe('OrdersService — paiement Stripe', () => {
     const order = baseOrder({ status: OrderStatus.CANCELLED });
     stripe.retrievePaidSession.mockResolvedValue(paidSession());
     prisma.order.findFirst.mockResolvedValue(order);
-    prisma.product.findUnique.mockResolvedValue({
-      id: 'prod-1',
-      name: 'Robe',
-      stock: 5,
-      variants: [{ id: 'var-1', stock: 5 }],
-    });
-    prisma.productVariant.update.mockResolvedValue({
-      id: 'var-1',
-      stock: 4,
-    });
-    prisma.productVariant.findMany.mockResolvedValue([
-      { id: 'var-1', stock: 4 },
-    ]);
-    prisma.product.update.mockResolvedValue({});
+    mockStockOk();
     prisma.order.update.mockResolvedValue({
       ...order,
       status: OrderStatus.PAID,
@@ -207,6 +214,10 @@ describe('OrdersService — paiement Stripe', () => {
     const result = await service.markPaidFromStripeSession('cs_test_1');
 
     expect(result.status).toBe(OrderStatus.PAID);
+    expect(prisma.order.updateMany).toHaveBeenCalledWith({
+      where: { id: 'order-1', status: OrderStatus.CANCELLED },
+      data: { status: OrderStatus.PENDING },
+    });
     expect(prisma.productVariant.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'var-1' },
@@ -239,7 +250,7 @@ describe('OrdersService — paiement Stripe', () => {
     const result = await service.markPaidFromStripeSession('cs_test_1');
 
     expect(result.status).toBe(OrderStatus.REFUNDED);
-    expect(stripe.refundPayment).toHaveBeenCalledWith('pi_test_1');
+    expect(stripe.refundPayment).toHaveBeenCalledWith('pi_test_1', 'order-1');
     expect(prisma.order.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: OrderStatus.REFUNDED }),
@@ -269,6 +280,59 @@ describe('OrdersService — paiement Stripe', () => {
       expect.objectContaining({
         data: expect.objectContaining({ status: OrderStatus.PAID }),
       }),
+    );
+  });
+
+  it('deux appels simultanés sur CANCELLED ne décrémentent le stock qu’une fois', async () => {
+    const order = baseOrder({ status: OrderStatus.CANCELLED });
+    stripe.retrievePaidSession.mockResolvedValue(paidSession());
+    prisma.order.findFirst.mockResolvedValue(order);
+    mockStockOk();
+
+    let lockTaken = false;
+    prisma.order.updateMany.mockImplementation(async () => {
+      if (!lockTaken) {
+        lockTaken = true;
+        return { count: 1 };
+      }
+      return { count: 0 };
+    });
+
+    prisma.order.update.mockResolvedValue({
+      ...order,
+      status: OrderStatus.PAID,
+    });
+    prisma.order.findUnique.mockResolvedValue({
+      ...order,
+      status: OrderStatus.PAID,
+    });
+
+    const [first, second] = await Promise.all([
+      service.markPaidFromStripeSession('cs_test_1'),
+      service.markPaidFromStripeSession('cs_test_1'),
+    ]);
+
+    expect(first.status).toBe(OrderStatus.PAID);
+    expect(second.status).toBe(OrderStatus.PAID);
+    expect(prisma.productVariant.update).toHaveBeenCalledTimes(1);
+    expect(stripe.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it('refundPayment transmet la clé d’idempotence à refunds.create', async () => {
+    const create = jest.fn().mockResolvedValue({});
+    const stripeService = new StripeService({
+      get: (key: string) =>
+        key === 'app.stripeSecretKey' ? 'sk_test_dummy_key_for_unit' : '',
+    } as unknown as ConfigService);
+    (stripeService as unknown as { client: unknown }).client = {
+      refunds: { create },
+    };
+
+    await stripeService.refundPayment('pi_test_1', 'order-1');
+
+    expect(create).toHaveBeenCalledWith(
+      { payment_intent: 'pi_test_1' },
+      { idempotencyKey: 'refund-order-order-1' },
     );
   });
 });
