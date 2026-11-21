@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -9,13 +10,20 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Role, User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { passwordResetEmail } from '../mail/templates/password-reset';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import {
   ChangePasswordDto,
   UpdateProfileDto,
 } from './dto/update-profile.dto';
+
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 
 export type PublicUser = {
   id: string;
@@ -39,6 +47,7 @@ export class AuthService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly mail: MailService,
   ) {}
 
   async onModuleInit() {
@@ -123,6 +132,86 @@ export class AuthService implements OnModuleInit {
     await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash },
+    });
+
+    return { ok: true };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ ok: true }> {
+    const email = dto.email.trim().toLowerCase();
+    try {
+      const user = await this.prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        return { ok: true };
+      }
+
+      const token = randomBytes(32).toString('hex');
+      const tokenHash = createHash('sha256').update(token).digest('hex');
+      const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.passwordResetToken.updateMany({
+          where: { userId: user.id, usedAt: null },
+          data: { usedAt: new Date() },
+        });
+        await tx.passwordResetToken.create({
+          data: {
+            userId: user.id,
+            tokenHash,
+            expiresAt,
+          },
+        });
+      });
+
+      const frontendUrl = this.config.get<string>('app.frontendUrl') ?? '';
+      const resetUrl = `${frontendUrl}/reinitialiser-mot-de-passe?token=${encodeURIComponent(token)}`;
+      const tpl = passwordResetEmail({
+        firstName: user.firstName,
+        resetUrl,
+      });
+      await this.mail.send({
+        to: user.email,
+        subject: tpl.subject,
+        html: tpl.html,
+        text: tpl.text,
+      });
+    } catch (err) {
+      this.logger.error(
+        `forgot-password: ${err instanceof Error ? err.message : 'erreur'}`,
+      );
+    }
+    return { ok: true };
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<{ ok: true }> {
+    const tokenHash = createHash('sha256')
+      .update(dto.token.trim())
+      .digest('hex');
+    const record = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (
+      !record ||
+      record.usedAt != null ||
+      record.expiresAt.getTime() <= Date.now()
+    ) {
+      throw new BadRequestException('Lien invalide ou expiré');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.passwordResetToken.updateMany({
+        where: { id: record.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestException('Lien invalide ou expiré');
+      }
+      await tx.user.update({
+        where: { id: record.userId },
+        data: { passwordHash },
+      });
     });
 
     return { ok: true };
