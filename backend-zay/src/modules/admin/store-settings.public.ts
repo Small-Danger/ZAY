@@ -6,11 +6,13 @@ export type PublicStoreSettings = {
   shippingCost: StoreSettings['shippingCost'];
   freeShippingThreshold: StoreSettings['freeShippingThreshold'];
   legalName: string | null;
+  tradeName: string | null;
   legalForm: string | null;
   shareCapital: string | null;
   siret: string | null;
   rcsCity: string | null;
   vatNumber: string | null;
+  vatFranchise: boolean;
   legalAddress: string | null;
   publicationDirector: string | null;
   contactPhone: string | null;
@@ -40,11 +42,13 @@ export function toPublicStoreSettings(
     shippingCost: settings.shippingCost,
     freeShippingThreshold: settings.freeShippingThreshold,
     legalName: settings.legalName,
+    tradeName: settings.tradeName,
     legalForm: settings.legalForm,
     shareCapital: settings.shareCapital,
     siret: settings.siret,
     rcsCity: settings.rcsCity,
     vatNumber: settings.vatNumber,
+    vatFranchise: settings.vatFranchise,
     legalAddress: settings.legalAddress,
     publicationDirector: settings.publicationDirector,
     contactPhone: settings.contactPhone,

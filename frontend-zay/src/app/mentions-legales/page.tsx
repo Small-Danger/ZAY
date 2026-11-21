@@ -1,5 +1,6 @@
 import { LegalPageShell } from '@/components/legal/LegalPageShell';
 import {
+  buildSellerIdentityBullets,
   displayOrPending,
   getPublicSettings,
 } from '@/lib/api/store-settings-public';
@@ -32,19 +33,9 @@ export default async function MentionsLegalesPage() {
         {
           title: '1. Éditeur du site',
           paragraphs: [
-            'Le site est édité par ZAY Atelier, marque de prêt-à-porter féminin.',
+            'Le site est édité par :',
           ],
-          bullets: [
-            `Raison sociale : ${displayOrPending(s.legalName)}`,
-            `Forme juridique : ${displayOrPending(s.legalForm)}`,
-            `Capital social : ${displayOrPending(s.shareCapital)}`,
-            `Siège social : ${displayOrPending(s.legalAddress)}`,
-            `SIRET : ${displayOrPending(s.siret)}`,
-            `RCS : ${displayOrPending(s.rcsCity)}`,
-            `N° TVA intracommunautaire : ${displayOrPending(s.vatNumber)}`,
-            `E-mail : ${email ?? 'Information en cours de mise à jour'}`,
-            `Directeur de la publication : ${displayOrPending(s.publicationDirector)}`,
-          ],
+          bullets: buildSellerIdentityBullets(s),
         },
         {
           title: '2. Hébergement',
