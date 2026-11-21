@@ -11,11 +11,17 @@ import {
   Post,
   Query,
   UploadedFiles,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import {
+  AuthUser,
+  CurrentUser,
+} from '../auth/decorators/current-user.decorator';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductVariantDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
@@ -39,13 +45,26 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get()
-  findAll(@Query() query: ProductQueryDto) {
-    return this.productsService.findAll(query);
+  @UseGuards(OptionalJwtAuthGuard)
+  findAll(
+    @Query() query: ProductQueryDto,
+    @CurrentUser() user?: AuthUser | null,
+  ) {
+    return this.productsService.findAll(query, user);
   }
 
   @Get(':idOrSlug')
-  findOne(@Param('idOrSlug') idOrSlug: string) {
-    return this.productsService.findOne(idOrSlug);
+  @UseGuards(OptionalJwtAuthGuard)
+  findOne(
+    @Param('idOrSlug') idOrSlug: string,
+    @Query() query: ProductQueryDto,
+    @CurrentUser() user?: AuthUser | null,
+  ) {
+    return this.productsService.findOne(
+      idOrSlug,
+      user,
+      query.includeDrafts,
+    );
   }
 
   /**

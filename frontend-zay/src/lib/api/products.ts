@@ -8,6 +8,8 @@ export type ProductListParams = {
   isNew?: boolean;
   isPromo?: boolean;
   search?: string;
+  /** Admin uniquement — nécessite JWT ADMIN. */
+  includeDrafts?: boolean;
 };
 
 export type ProductVariantPayload = {
@@ -33,6 +35,7 @@ export type CreateProductPayload = {
   badge?: string;
   isNew?: boolean;
   isPromo?: boolean;
+  isPublished?: boolean;
   categoryId: string;
   subcategoryId?: string;
   variants?: ProductVariantPayload[];
@@ -63,6 +66,9 @@ function appendProductForm(
   if (payload.isPromo !== undefined) {
     form.append('isPromo', String(payload.isPromo));
   }
+  if (payload.isPublished !== undefined) {
+    form.append('isPublished', String(payload.isPublished));
+  }
   if (payload.categoryId !== undefined) {
     form.append('categoryId', payload.categoryId);
   }
@@ -90,6 +96,9 @@ export async function fetchProducts(
   if (typeof params.isNew === 'boolean') query.set('isNew', String(params.isNew));
   if (typeof params.isPromo === 'boolean') {
     query.set('isPromo', String(params.isPromo));
+  }
+  if (typeof params.includeDrafts === 'boolean') {
+    query.set('includeDrafts', String(params.includeDrafts));
   }
   if (params.search) query.set('search', params.search);
 

@@ -4,10 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { UploadsService } from '../../common/uploads/uploads.service';
+import type { AuthUser } from '../auth/decorators/current-user.decorator';
 import {
   CreateProductDto,
   CreateProductVariantDto,
@@ -25,6 +26,10 @@ const productInclude = {
   },
 };
 
+function variantKey(size: string, colorName: string) {
+  return `${size.trim().toUpperCase()}||${colorName.trim()}`;
+}
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -33,12 +38,29 @@ export class ProductsService {
     private readonly redis: RedisService,
   ) {}
 
-  async findAll(query: ProductQueryDto) {
-    const cacheKey = this.redis.catalogProductsKey(query);
+  private allowDrafts(user?: AuthUser | null, includeDrafts?: boolean) {
+    return !!(includeDrafts && user?.role === Role.ADMIN);
+  }
+
+  private assertOriginalPrice(price: number, originalPrice: number | null) {
+    if (originalPrice != null && !(originalPrice > price)) {
+      throw new BadRequestException(
+        'Le prix barré doit être supérieur au prix de vente',
+      );
+    }
+  }
+
+  async findAll(query: ProductQueryDto, user?: AuthUser | null) {
+    const includeDrafts = this.allowDrafts(user, query.includeDrafts);
+    const cacheKey = this.redis.catalogProductsKey({
+      ...query,
+      includeDrafts,
+    });
     const cached = await this.redis.getJson<unknown[]>(cacheKey);
     if (cached) return cached;
 
     const where: Prisma.ProductWhereInput = {};
+    if (!includeDrafts) where.isPublished = true;
 
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.subcategoryId) where.subcategoryId = query.subcategoryId;
@@ -60,8 +82,13 @@ export class ProductsService {
     return products;
   }
 
-  async findOne(idOrSlug: string) {
-    const cacheKey = this.redis.catalogProductKey(idOrSlug);
+  async findOne(
+    idOrSlug: string,
+    user?: AuthUser | null,
+    includeDrafts?: boolean,
+  ) {
+    const showDrafts = this.allowDrafts(user, includeDrafts);
+    const cacheKey = this.redis.catalogProductKey(idOrSlug, showDrafts);
     const cached = await this.redis.getJson<
       Prisma.ProductGetPayload<{ include: typeof productInclude }>
     >(cacheKey);
@@ -73,9 +100,12 @@ export class ProductsService {
       );
 
     const product = await this.prisma.product.findFirst({
-      where: isUuid
-        ? { OR: [{ id: idOrSlug }, { slug: idOrSlug }] }
-        : { slug: idOrSlug },
+      where: {
+        ...(isUuid
+          ? { OR: [{ id: idOrSlug }, { slug: idOrSlug }] }
+          : { slug: idOrSlug }),
+        ...(!showDrafts ? { isPublished: true } : {}),
+      },
       include: productInclude,
     });
 
@@ -96,6 +126,8 @@ export class ProductsService {
     if (dto.subcategoryId) {
       await this.ensureSubcategory(dto.subcategoryId, dto.categoryId);
     }
+
+    this.assertOriginalPrice(dto.price, dto.originalPrice ?? null);
 
     const image = imageFile
       ? await this.uploads.saveImage(imageFile, 'products')
@@ -138,9 +170,10 @@ export class ProductsService {
           status: computeProductStatus(stock),
           image,
           images,
-          badge: dto.badge?.trim(),
+          badge: dto.badge?.trim() || null,
           isNew: dto.isNew ?? true,
           isPromo,
+          isPublished: dto.isPublished ?? false,
           categoryId: dto.categoryId,
           subcategoryId: dto.subcategoryId,
           variants:
@@ -173,7 +206,7 @@ export class ProductsService {
     imageFile?: Express.Multer.File,
     galleryFiles: Express.Multer.File[] = [],
   ) {
-    const existing = await this.findOne(id);
+    const existing = await this.findOne(id, { role: Role.ADMIN } as AuthUser, true);
 
     if (dto.categoryId) {
       await this.ensureCategory(dto.categoryId);
@@ -204,6 +237,8 @@ export class ProductsService {
           : null
         : dto.originalPrice;
 
+    this.assertOriginalPrice(price, originalPrice);
+
     let newImage: string | undefined;
     if (imageFile) {
       newImage = await this.uploads.saveImage(imageFile, 'products');
@@ -228,13 +263,18 @@ export class ProductsService {
       description:
         dto.description === undefined ? undefined : dto.description.trim(),
       price: dto.price,
-      // null = effacer le prix barré ; undefined = ne pas toucher
       originalPrice:
         dto.originalPrice === undefined ? undefined : dto.originalPrice,
       image: newImage ?? dto.image,
       images: nextImages,
-      badge: dto.badge === undefined ? undefined : dto.badge.trim(),
+      badge:
+        dto.badge === undefined
+          ? undefined
+          : dto.badge === null || dto.badge === ''
+            ? null
+            : dto.badge.trim(),
       isNew: dto.isNew,
+      isPublished: dto.isPublished,
       isPromo:
         dto.isPromo ??
         (originalPrice != null && originalPrice > price),
@@ -249,13 +289,13 @@ export class ProductsService {
           : { connect: { id: subcategoryId } },
     };
 
-    const replacingVariants = dto.variants !== undefined;
+    const syncingVariants = dto.variants !== undefined;
 
     if (
       typeof dto.stock === 'number' &&
-      (!replacingVariants || dto.variants!.length === 0)
+      (!syncingVariants || dto.variants!.length === 0)
     ) {
-      const variantCount = replacingVariants
+      const variantCount = syncingVariants
         ? 0
         : await this.prisma.productVariant.count({
             where: { productId: existing.id },
@@ -276,17 +316,12 @@ export class ProductsService {
         await this.uploads.deleteIfOwned(existing.image);
       }
 
-      if (replacingVariants) {
-        if (dto.variants!.length > 0) {
-          return this.replaceVariants(existing.id, dto.variants!);
-        }
-        await this.prisma.productVariant.deleteMany({
-          where: { productId: existing.id },
-        });
+      if (syncingVariants) {
+        return this.syncVariants(existing.id, dto.variants!);
       }
 
       await this.redis.invalidateCatalog();
-      return this.findOne(existing.id);
+      return this.findOne(existing.id, { role: Role.ADMIN } as AuthUser, true);
     } catch (error) {
       if (newImage) await this.uploads.deleteIfOwned(newImage);
       this.rethrowUnique(error);
@@ -294,14 +329,18 @@ export class ProductsService {
   }
 
   async remove(id: string) {
-    const existing = await this.findOne(id);
+    const existing = await this.findOne(id, { role: Role.ADMIN } as AuthUser, true);
     await this.uploads.deleteIfOwned(existing.image);
     await this.prisma.product.delete({ where: { id: existing.id } });
     await this.redis.invalidateCatalog();
   }
 
   async addVariant(productId: string, dto: CreateProductVariantDto) {
-    const product = await this.findOne(productId);
+    const product = await this.findOne(
+      productId,
+      { role: Role.ADMIN } as AuthUser,
+      true,
+    );
 
     try {
       await this.prisma.productVariant.create({
@@ -326,7 +365,11 @@ export class ProductsService {
     variantId: string,
     dto: UpdateProductVariantDto,
   ) {
-    const product = await this.findOne(productId);
+    const product = await this.findOne(
+      productId,
+      { role: Role.ADMIN } as AuthUser,
+      true,
+    );
     const variant = await this.prisma.productVariant.findFirst({
       where: { id: variantId, productId: product.id },
     });
@@ -367,7 +410,11 @@ export class ProductsService {
   }
 
   async removeVariant(productId: string, variantId: string) {
-    const product = await this.findOne(productId);
+    const product = await this.findOne(
+      productId,
+      { role: Role.ADMIN } as AuthUser,
+      true,
+    );
     const variant = await this.prisma.productVariant.findFirst({
       where: { id: variantId, productId: product.id },
     });
@@ -382,25 +429,72 @@ export class ProductsService {
     return this.syncStockFromVariants(product.id);
   }
 
-  private async replaceVariants(
+  /** Met à jour / crée / supprime les variantes sans changer les ids conservés. */
+  private async syncVariants(
     productId: string,
     variants: CreateProductVariantDto[],
   ) {
-    await this.prisma.$transaction([
-      this.prisma.productVariant.deleteMany({ where: { productId } }),
-      this.prisma.productVariant.createMany({
-        data: variants.map((v) => ({
-          productId,
-          size: v.size.trim().toUpperCase(),
-          colorName: v.colorName.trim(),
-          colorHex: v.colorHex?.trim(),
-          sku: v.sku?.trim(),
-          stock: v.stock,
-        })),
-      }),
-    ]);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.productVariant.findMany({
+        where: { productId },
+      });
+      const incomingKeys = new Set(
+        variants.map((v) => variantKey(v.size, v.colorName)),
+      );
 
-    return this.syncStockFromVariants(productId);
+      for (const row of existing) {
+        if (!incomingKeys.has(variantKey(row.size, row.colorName))) {
+          await tx.productVariant.delete({ where: { id: row.id } });
+        }
+      }
+
+      const remaining = await tx.productVariant.findMany({
+        where: { productId },
+      });
+      const byKey = new Map(
+        remaining.map((row) => [variantKey(row.size, row.colorName), row]),
+      );
+
+      for (const v of variants) {
+        const key = variantKey(v.size, v.colorName);
+        const found = byKey.get(key);
+        if (found) {
+          await tx.productVariant.update({
+            where: { id: found.id },
+            data: {
+              colorHex: v.colorHex?.trim(),
+              sku: v.sku?.trim(),
+              stock: v.stock,
+            },
+          });
+        } else {
+          await tx.productVariant.create({
+            data: {
+              productId,
+              size: v.size.trim().toUpperCase(),
+              colorName: v.colorName.trim(),
+              colorHex: v.colorHex?.trim(),
+              sku: v.sku?.trim(),
+              stock: v.stock,
+            },
+          });
+        }
+      }
+
+      const all = await tx.productVariant.findMany({ where: { productId } });
+      const stock = all.reduce((sum, v) => sum + v.stock, 0);
+      return tx.product.update({
+        where: { id: productId },
+        data: {
+          stock,
+          status: computeProductStatus(stock),
+        },
+        include: productInclude,
+      });
+    });
+
+    await this.redis.invalidateCatalog();
+    return updated;
   }
 
   private async syncStockFromVariants(productId: string) {

@@ -21,10 +21,12 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { MediaImage } from '@/components/ui/media-image';
 import { cn } from '@/lib/utils';
 import { createProduct, deleteProduct, updateProduct } from '@/lib/api';
 import { API_ORIGIN } from '@/lib/api/config';
+import { PRODUCT_BADGES } from '@/lib/product-badges';
 import { getSubcategoriesFor, useCategories } from '@/hooks/use-categories';
 import { useProducts } from '@/hooks/use-products';
 import type { ProductVariantPayload, UiProduct } from '@/lib/api';
@@ -54,6 +56,8 @@ type EditableProduct = {
   galleryFiles: File[];
   description: string;
   badge: string;
+  isNew: boolean;
+  isPublished: boolean;
   variants: VariantFormRow[];
 };
 
@@ -210,6 +214,8 @@ type ProductFormFieldsProps = {
   gallery: GalleryThumb[];
   description: string;
   badge: string;
+  isNew: boolean;
+  isPublished: boolean;
   variants: VariantFormRow[];
   categories: ReturnType<typeof useCategories>['data'];
   coverRef: React.RefObject<HTMLInputElement | null>;
@@ -226,6 +232,8 @@ type ProductFormFieldsProps = {
     stock?: string;
     description?: string;
     badge?: string;
+    isNew?: boolean;
+    isPublished?: boolean;
     variants?: VariantFormRow[];
   }) => void;
 };
@@ -241,6 +249,8 @@ function ProductFormFields({
   gallery,
   description,
   badge,
+  isNew,
+  isPublished,
   variants,
   categories,
   coverRef,
@@ -351,7 +361,7 @@ function ProductFormFields({
             required
             type="number"
             step="0.01"
-            min="0"
+            min="0.5"
             value={price}
             onChange={(e) => onChange({ price: e.target.value })}
             className="rounded-none h-10 font-bold"
@@ -394,12 +404,39 @@ function ProductFormFields({
         <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
           Badge
         </Label>
-        <Input
+        <select
+          className="w-full h-10 border border-zay-border rounded-none text-[0.65rem] font-bold uppercase tracking-widest px-3"
           value={badge}
           onChange={(e) => onChange({ badge: e.target.value })}
-          placeholder="NEW, PROMO…"
-          className="rounded-none h-10 font-bold"
-        />
+        >
+          <option value="">Aucun</option>
+          {PRODUCT_BADGES.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex items-center justify-between border border-zay-border px-3 py-2.5">
+          <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+            Nouveauté
+          </Label>
+          <Switch
+            checked={isNew}
+            onCheckedChange={(v) => onChange({ isNew: v })}
+          />
+        </div>
+        <div className="flex items-center justify-between border border-zay-border px-3 py-2.5">
+          <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+            Publié
+          </Label>
+          <Switch
+            checked={isPublished}
+            onCheckedChange={(v) => onChange({ isPublished: v })}
+          />
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -470,7 +507,9 @@ function ProductFormFields({
 
 export default function AdminProductsPage() {
   const { data: categories } = useCategories();
-  const { data: products, loading, refetch } = useProducts();
+  const { data: products, loading, refetch } = useProducts({
+    includeDrafts: true,
+  });
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -495,6 +534,8 @@ export default function AdminProductsPage() {
     galleryPreviews: [] as string[],
     description: '',
     badge: '',
+    isNew: true,
+    isPublished: false,
     variants: [] as VariantFormRow[],
   });
 
@@ -566,7 +607,8 @@ export default function AdminProductsPage() {
         galleryFiles: newProduct.galleryFiles,
         description: newProduct.description || undefined,
         badge: newProduct.badge || undefined,
-        isNew: true,
+        isNew: newProduct.isNew,
+        isPublished: newProduct.isPublished,
         isPromo: !!(
           newProduct.originalPrice.trim() &&
           parseFloat(newProduct.originalPrice) > (parseFloat(newProduct.price) || 0)
@@ -581,6 +623,8 @@ export default function AdminProductsPage() {
         originalPrice: '', stock: '', image: '', imageFile: null,
         galleryFiles: [], galleryPreviews: [],
         description: '', badge: '',
+        isNew: true,
+        isPublished: false,
         variants: [],
       });
       await refetch();
@@ -617,12 +661,14 @@ export default function AdminProductsPage() {
         galleryFiles: editingProduct.galleryFiles,
         description: editingProduct.description || undefined,
         badge: editingProduct.badge || undefined,
+        isNew: editingProduct.isNew,
+        isPublished: editingProduct.isPublished,
         isPromo: !!(
           editingProduct.originalPrice.trim() &&
           parseFloat(editingProduct.originalPrice) >
             (parseFloat(editingProduct.price) || 0)
         ),
-        // Toujours envoyer le tableau (même vide) pour remplacer côté API
+        // Toujours envoyer le tableau (même vide) pour synchroniser côté API
         variants,
       });
 
@@ -666,6 +712,8 @@ export default function AdminProductsPage() {
       galleryFiles: [],
       description: product.description || '',
       badge: product.badge || '',
+      isNew: product.isNew,
+      isPublished: product.isPublished,
       variants: (product.variants || []).map((v) => ({
         key: v.id,
         size: v.size,
@@ -740,6 +788,8 @@ export default function AdminProductsPage() {
                     }))}
                     description={newProduct.description}
                     badge={newProduct.badge}
+                    isNew={newProduct.isNew}
+                    isPublished={newProduct.isPublished}
                     variants={newProduct.variants}
                     categories={categories}
                     coverRef={fileInputRef}
@@ -799,6 +849,7 @@ export default function AdminProductsPage() {
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest">Catégorie</TableHead>
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest">Prix</TableHead>
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest text-center">Stock</TableHead>
+                <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest">Statut</TableHead>
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest pr-6 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -825,6 +876,11 @@ export default function AdminProductsPage() {
                   </TableCell>
                   <TableCell className="text-xs font-bold">{product.price.toFixed(2)}€</TableCell>
                   <TableCell className="text-center text-xs font-bold">{product.stock}</TableCell>
+                  <TableCell className="text-[0.6rem] font-bold uppercase tracking-widest">
+                    <span className={product.isPublished ? 'text-green-700' : 'text-zay-text-muted'}>
+                      {product.isPublished ? 'Publié' : 'Brouillon'}
+                    </span>
+                  </TableCell>
                   <TableCell className="pr-6 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -918,6 +974,8 @@ export default function AdminProductsPage() {
                       ]}
                       description={editingProduct.description}
                       badge={editingProduct.badge}
+                      isNew={editingProduct.isNew}
+                      isPublished={editingProduct.isPublished}
                       variants={editingProduct.variants}
                       categories={categories}
                       coverRef={editFileInputRef}

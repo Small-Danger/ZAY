@@ -1,3 +1,14 @@
+/** Badges autorisés sur les fiches produit (admin + API). */
+export const PRODUCT_BADGES = [
+  'NOUVEAU',
+  'PROMO',
+  'BEST-SELLER',
+  'ÉDITION LIMITÉE',
+  'DERNIÈRES PIÈCES',
+] as const;
+
+export type ProductBadge = (typeof PRODUCT_BADGES)[number];
+
 /** Génère un slug URL-safe à partir d’un nom produit. */
 export function slugify(input: string): string {
   return input
