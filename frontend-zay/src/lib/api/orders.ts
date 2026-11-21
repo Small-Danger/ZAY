@@ -187,7 +187,4 @@ export function formatOrderDateTime(iso: string): string {
   }
 }
 
-export function formatMoney(value: string | number): string {
-  const n = typeof value === 'number' ? value : Number(value);
-  return `${(Number.isFinite(n) ? n : 0).toFixed(2)}€`;
-}
+export { formatEUR as formatMoney } from '../format';

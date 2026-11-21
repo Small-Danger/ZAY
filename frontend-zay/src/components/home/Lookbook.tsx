@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Button } from '@/components/ui/button';
+import { formatEUR } from '@/lib/format';
 
 const looks = [
   {
@@ -97,7 +98,7 @@ export const Lookbook = () => {
                         <span className="text-[0.65rem] tracking-[0.2em] font-bold uppercase text-zay-text-muted">Featured</span>
                         <div className="flex flex-col">
                           <span className="text-sm font-medium tracking-tight group-hover:underline decoration-zay-rose/30 underline-offset-4">{product.name}</span>
-                          <span className="text-sm font-bold text-zay-rose">{product.price} €</span>
+                          <span className="text-sm font-bold text-zay-rose">{formatEUR(product.price)}</span>
                         </div>
                       </Link>
                     ))}

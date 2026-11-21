@@ -1,3 +1,4 @@
+import { formatEUR } from '../format';
 import { apiFetch } from './client';
 
 export type PromoType = 'PERCENTAGE' | 'AMOUNT';
@@ -75,7 +76,7 @@ export async function validatePromo(
 
 export function formatPromoValue(promo: ApiPromo): string {
   const n = typeof promo.value === 'number' ? promo.value : Number(promo.value);
-  return promo.type === 'PERCENTAGE' ? `-${n}%` : `-${n.toFixed(2)}€`;
+  return promo.type === 'PERCENTAGE' ? `-${n}%` : `−${formatEUR(n)}`;
 }
 
 export function formatPromoExpiration(expiresAt: string | null): string {

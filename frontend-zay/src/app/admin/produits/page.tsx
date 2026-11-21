@@ -32,6 +32,7 @@ import { useProducts } from '@/hooks/use-products';
 import type { ProductVariantPayload, UiProduct } from '@/lib/api';
 import { notify, notifyError, notifySuccess } from '@/lib/notify';
 import { AdminBusyOverlay } from '@/components/admin/admin-busy-overlay';
+import { formatEUR } from '@/lib/format';
 
 type VariantFormRow = {
   key: string;
@@ -874,7 +875,7 @@ export default function AdminProductsPage() {
                   <TableCell className="text-xs italic text-zay-text-muted font-bold">
                     {product.category} {product.subcategoryName ? `• ${product.subcategoryName}` : ''}
                   </TableCell>
-                  <TableCell className="text-xs font-bold">{product.price.toFixed(2)}€</TableCell>
+                  <TableCell className="text-xs font-bold">{formatEUR(product.price)}</TableCell>
                   <TableCell className="text-center text-xs font-bold">{product.stock}</TableCell>
                   <TableCell className="text-[0.6rem] font-bold uppercase tracking-widest">
                     <span className={product.isPublished ? 'text-green-700' : 'text-zay-text-muted'}>

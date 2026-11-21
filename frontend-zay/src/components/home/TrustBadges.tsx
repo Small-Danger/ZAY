@@ -23,8 +23,8 @@ const badges = [
   },
   { 
     icon: CreditCard, 
-    title: '3× sans frais', 
-    desc: 'Avec Klarna ou Alma'
+    title: '3× avec Klarna',
+    desc: 'Carte · Apple Pay · Klarna'
   },
 ];
 
