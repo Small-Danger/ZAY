@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
 import { OrdersService } from './orders.service';
@@ -32,16 +32,20 @@ describe('OrdersService — paiement Stripe', () => {
   let prisma: {
     order: {
       findFirst: jest.Mock;
+      findMany: jest.Mock;
       findUnique: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
     };
     product: {
       findUnique: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
     };
     productVariant: {
       update: jest.Mock;
+      updateMany: jest.Mock;
       findMany: jest.Mock;
     };
     promoCode: {
@@ -116,16 +120,20 @@ describe('OrdersService — paiement Stripe', () => {
     prisma = {
       order: {
         findFirst: jest.fn(),
+        findMany: jest.fn(),
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       product: {
         findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
       productVariant: {
         update: jest.fn(),
+        updateMany: jest.fn(),
         findMany: jest.fn(),
       },
       promoCode: {
@@ -334,5 +342,54 @@ describe('OrdersService — paiement Stripe', () => {
       { payment_intent: 'pi_test_1' },
       { idempotencyKey: 'refund-order-order-1' },
     );
+  });
+
+  it('deux annulations concurrentes (webhook + release user) ne restockent qu’une fois', async () => {
+    const order = baseOrder({ status: OrderStatus.PENDING });
+    prisma.order.findFirst.mockResolvedValue(order);
+    prisma.order.findMany.mockResolvedValue([{ id: order.id }]);
+    prisma.order.findUnique.mockResolvedValue(order);
+    stripe.retrievePaidSession.mockResolvedValue(
+      paidSession({ paid: false }),
+    );
+    prisma.productVariant.updateMany.mockResolvedValue({ count: 1 });
+
+    let claimTaken = false;
+    prisma.order.updateMany.mockImplementation(async () => {
+      if (!claimTaken) {
+        claimTaken = true;
+        return { count: 1 };
+      }
+      return { count: 0 };
+    });
+
+    const privateApi = service as unknown as {
+      releaseUnpaidPendingForUser: (userId: string) => Promise<void>;
+    };
+
+    await Promise.all([
+      service.cancelUnpaidFromStripeSession('cs_test_1'),
+      privateApi.releaseUnpaidPendingForUser('user-1'),
+    ]);
+
+    expect(prisma.productVariant.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.productVariant.updateMany).toHaveBeenCalledWith({
+      where: { id: 'var-1' },
+      data: { stock: { increment: 1 } },
+    });
+  });
+
+  it('updateStatus vers CANCELLED si statut changé → ConflictException, pas de restock', async () => {
+    const order = baseOrder({ status: OrderStatus.PAID });
+    prisma.order.findUnique.mockResolvedValue(order);
+    prisma.order.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.updateStatus('order-1', { status: OrderStatus.CANCELLED }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(prisma.productVariant.updateMany).not.toHaveBeenCalled();
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
+    expect(redis.invalidateCatalog).not.toHaveBeenCalled();
   });
 });

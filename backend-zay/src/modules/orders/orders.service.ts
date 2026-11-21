@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -514,25 +515,40 @@ export class OrdersService {
     const releasePromo =
       restock && this.shouldReleasePromo(existing.status);
 
+    const statusData = {
+      status: dto.status,
+      carrier: dto.carrier?.trim(),
+      trackingCode: dto.trackingCode?.trim(),
+      trackingUrl: dto.trackingUrl?.trim(),
+    };
+
     const updated = await this.prisma.$transaction(async (tx) => {
       if (restock) {
+        const claimed = await tx.order.updateMany({
+          where: { id, status: existing.status },
+          data: statusData,
+        });
+        if (claimed.count === 0) {
+          throw new ConflictException(
+            'La commande a été modifiée entre-temps, rechargez la page',
+          );
+        }
         await this.restockItems(tx, existing.items);
-      }
-      if (releasePromo && existing.promoCode) {
-        await tx.promoCode.updateMany({
-          where: { code: existing.promoCode, usageCount: { gt: 0 } },
-          data: { usageCount: { decrement: 1 } },
+        if (releasePromo && existing.promoCode) {
+          await tx.promoCode.updateMany({
+            where: { code: existing.promoCode, usageCount: { gt: 0 } },
+            data: { usageCount: { decrement: 1 } },
+          });
+        }
+        return tx.order.findUniqueOrThrow({
+          where: { id },
+          include: orderInclude,
         });
       }
 
       return tx.order.update({
         where: { id },
-        data: {
-          status: dto.status,
-          carrier: dto.carrier?.trim(),
-          trackingCode: dto.trackingCode?.trim(),
-          trackingUrl: dto.trackingUrl?.trim(),
-        },
+        data: statusData,
         include: orderInclude,
       });
     });
@@ -570,7 +586,19 @@ export class OrdersService {
       return order;
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.order.updateMany({
+        where: { id: order.id, status: OrderStatus.PAID },
+        data: { status: OrderStatus.CANCELLED },
+      });
+      if (claimed.count === 0) {
+        const current = await tx.order.findUnique({
+          where: { id: order.id },
+          include: orderInclude,
+        });
+        return { order: current, restocked: false };
+      }
+
       await this.restockItems(tx, order.items);
       if (order.promoCode) {
         await tx.promoCode.updateMany({
@@ -578,14 +606,17 @@ export class OrdersService {
           data: { usageCount: { decrement: 1 } },
         });
       }
-      return tx.order.update({
+      const cancelled = await tx.order.findUnique({
         where: { id: order.id },
-        data: { status: OrderStatus.CANCELLED },
         include: orderInclude,
       });
+      return { order: cancelled, restocked: true };
     });
-    await this.redis.invalidateCatalog();
-    return updated;
+
+    if (result.restocked) {
+      await this.redis.invalidateCatalog();
+    }
+    return result.order;
   }
 
   private shouldRestock(from: OrderStatus, to: OrderStatus): boolean {
@@ -634,6 +665,7 @@ export class OrdersService {
       return current;
     }
 
+    // Stripe hors transaction (ne doit pas bloquer le claim atomique)
     if (current.stripeSessionId) {
       try {
         const session = await this.stripe.retrievePaidSession(
@@ -653,25 +685,28 @@ export class OrdersService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const locked = await tx.order.findUnique({
-        where: { id: orderId },
-        include: { items: true },
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, status: OrderStatus.PENDING },
+        data: { status: OrderStatus.CANCELLED },
       });
-      if (!locked || locked.status !== OrderStatus.PENDING) {
-        return { order: locked, restocked: false };
+      if (claimed.count === 0) {
+        const existing = await tx.order.findUnique({
+          where: { id: orderId },
+          include: orderInclude,
+        });
+        return { order: existing, restocked: false };
       }
 
-      await this.restockItems(tx, locked.items);
-      if (locked.promoCode) {
+      await this.restockItems(tx, current.items);
+      if (current.promoCode) {
         await tx.promoCode.updateMany({
-          where: { code: locked.promoCode, usageCount: { gt: 0 } },
+          where: { code: current.promoCode, usageCount: { gt: 0 } },
           data: { usageCount: { decrement: 1 } },
         });
       }
 
-      const order = await tx.order.update({
-        where: { id: locked.id },
-        data: { status: OrderStatus.CANCELLED },
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
         include: orderInclude,
       });
       return { order, restocked: true };
