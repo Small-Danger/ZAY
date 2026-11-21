@@ -8,9 +8,15 @@ import { InstagramFeed } from '@/components/home/InstagramFeed';
 import { TrustBadges } from '@/components/home/TrustBadges';
 import { Footer } from '@/components/layout/Footer';
 import { fetchProducts } from '@/lib/api';
+import { getPublicSettings } from '@/lib/api/store-settings-public';
+
+export const revalidate = 60;
 
 export default async function Home() {
-  const products = await fetchProducts().catch(() => []);
+  const [products, settings] = await Promise.all([
+    fetchProducts().catch(() => []),
+    getPublicSettings(),
+  ]);
 
   return (
     <div className="flex flex-col min-h-screen bg-zay-main">
@@ -20,7 +26,7 @@ export default async function Home() {
         <Categories />
         <NewArrivals initialProducts={products} />
         <PromoBanner />
-        <FeaturedEvent />
+        <FeaturedEvent settings={settings} />
         <InstagramFeed />
         <TrustBadges />
       </main>
