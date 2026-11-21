@@ -39,6 +39,16 @@ export class CreatePromoDto {
 
   @IsOptional()
   @IsBoolean()
+  firstOrderOnly?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  perUserLimit?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
   active?: boolean;
 }
 
@@ -68,6 +78,16 @@ export class UpdatePromoDto {
   @Min(1)
   @Type(() => Number)
   usageLimit?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  firstOrderOnly?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  perUserLimit?: number | null;
 
   @IsOptional()
   @IsBoolean()

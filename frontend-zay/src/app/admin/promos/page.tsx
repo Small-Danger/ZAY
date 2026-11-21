@@ -35,6 +35,8 @@ const emptyForm = {
   value: '',
   expiresAt: '',
   usageLimit: '',
+  firstOrderOnly: false,
+  perUserLimit: '',
 };
 
 function sanitizeCode(raw: string): string {
@@ -97,6 +99,8 @@ export default function AdminPromosPage() {
       value: String(promo.value),
       expiresAt: promo.expiresAt ? promo.expiresAt.slice(0, 10) : '',
       usageLimit: promo.usageLimit != null ? String(promo.usageLimit) : '',
+      firstOrderOnly: promo.firstOrderOnly,
+      perUserLimit: promo.perUserLimit != null ? String(promo.perUserLimit) : '',
     });
     setModalOpen(true);
   };
@@ -115,6 +119,10 @@ export default function AdminPromosPage() {
           ? new Date(`${form.expiresAt}T23:59:59`).toISOString()
           : null,
         usageLimit: form.usageLimit ? parseInt(form.usageLimit, 10) : null,
+        firstOrderOnly: form.firstOrderOnly,
+        perUserLimit: form.perUserLimit
+          ? parseInt(form.perUserLimit, 10)
+          : null,
         active: true,
       };
       if (editing) {
@@ -210,6 +218,7 @@ export default function AdminPromosPage() {
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest">Type / Valeur</TableHead>
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest">Expiration</TableHead>
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest text-center">Usages</TableHead>
+                <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest">Règles</TableHead>
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest text-center">Statut</TableHead>
                 <TableHead className="text-[0.6rem] font-bold uppercase tracking-widest pr-6 text-right">Actions</TableHead>
               </TableRow>
@@ -250,6 +259,16 @@ export default function AdminPromosPage() {
                           />
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                      {[
+                        promo.firstOrderOnly ? '1re cmd' : null,
+                        promo.perUserLimit != null
+                          ? `${promo.perUserLimit}/cliente`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '—'}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
@@ -399,8 +418,38 @@ export default function AdminPromosPage() {
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center justify-between border border-zay-border px-3 py-2.5">
+                  <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                    1re commande
+                  </Label>
+                  <Switch
+                    checked={form.firstOrderOnly}
+                    onCheckedChange={(v) =>
+                      setForm({ ...form, firstOrderOnly: v })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[0.55rem] font-bold uppercase tracking-widest text-zay-text-muted">
+                    Limite / cliente
+                  </Label>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="Illimité"
+                    value={form.perUserLimit}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        perUserLimit: sanitizeLimit(e.target.value),
+                      })
+                    }
+                    className="h-10 border-zay-border rounded-none"
+                  />
+                </div>
+              </div>
               <p className="text-[0.6rem] text-zay-text-muted italic">
-                Expiration et limite sont optionnelles.
+                Expiration et limites sont optionnelles.
               </p>
             </div>
             <DialogFooter className="border-t border-zay-border px-5 py-3">

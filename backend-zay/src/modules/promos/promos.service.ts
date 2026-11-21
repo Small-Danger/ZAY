@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, PromoType } from '@prisma/client';
+import { OrderStatus, Prisma, PromoType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreatePromoDto,
@@ -32,6 +32,8 @@ export class PromosService {
           value: new Prisma.Decimal(dto.value),
           expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
           usageLimit: dto.usageLimit ?? null,
+          firstOrderOnly: dto.firstOrderOnly ?? false,
+          perUserLimit: dto.perUserLimit ?? null,
           active: dto.active ?? true,
         },
       });
@@ -66,6 +68,9 @@ export class PromosService {
                 : new Date(dto.expiresAt),
           usageLimit:
             dto.usageLimit === undefined ? undefined : dto.usageLimit,
+          firstOrderOnly: dto.firstOrderOnly,
+          perUserLimit:
+            dto.perUserLimit === undefined ? undefined : dto.perUserLimit,
           active: dto.active,
         },
       });
@@ -85,9 +90,13 @@ export class PromosService {
     await this.prisma.promoCode.delete({ where: { id } });
   }
 
-  async validate(dto: ValidatePromoDto) {
-    const promo = await this.getValidPromo(dto.code);
-    const discountAmount = this.computeDiscount(promo.type, Number(promo.value), dto.subtotal);
+  async validate(dto: ValidatePromoDto, userId?: string) {
+    const promo = await this.getValidPromo(dto.code, userId);
+    const discountAmount = this.computeDiscount(
+      promo.type,
+      Number(promo.value),
+      dto.subtotal,
+    );
     return {
       valid: true,
       code: promo.code,
@@ -97,7 +106,7 @@ export class PromosService {
     };
   }
 
-  async getValidPromo(code: string) {
+  async getValidPromo(code: string, userId?: string) {
     const promo = await this.prisma.promoCode.findUnique({
       where: { code: code.trim().toUpperCase() },
     });
@@ -112,6 +121,38 @@ export class PromosService {
         'Ce code promo a atteint sa limite d’utilisation',
       );
     }
+
+    if (userId && promo.firstOrderOnly) {
+      const priorOrders = await this.prisma.order.count({
+        where: {
+          userId,
+          status: {
+            notIn: [OrderStatus.CANCELLED, OrderStatus.PENDING],
+          },
+        },
+      });
+      if (priorOrders > 0) {
+        throw new BadRequestException(
+          'Code réservé à la première commande',
+        );
+      }
+    }
+
+    if (userId && promo.perUserLimit != null) {
+      const usedByUser = await this.prisma.order.count({
+        where: {
+          userId,
+          promoCode: promo.code,
+          status: { not: OrderStatus.CANCELLED },
+        },
+      });
+      if (usedByUser >= promo.perUserLimit) {
+        throw new BadRequestException(
+          'Limite d’utilisation atteinte pour ce code',
+        );
+      }
+    }
+
     return promo;
   }
 
