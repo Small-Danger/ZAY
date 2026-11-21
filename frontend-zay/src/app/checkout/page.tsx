@@ -23,6 +23,7 @@ import { notify, notifyError } from '@/lib/notify';
 import { StoreLoadingScreen } from '@/components/layout/store-loading-screen';
 import { ZayBusyOverlay } from '@/components/ui/zay-busy-overlay';
 import { formatEUR } from '@/lib/format';
+import { isKlarnaEligibleAmount } from '@/lib/klarna';
 
 const STEPS = [
   { id: 1, name: 'Livraison' },
@@ -74,6 +75,14 @@ export default function CheckoutPage() {
       router.replace('/panier');
     }
   }, [mounted, authed, items.length, router]);
+
+  const checkoutTotal = finalPrice();
+
+  useEffect(() => {
+    if (!isKlarnaEligibleAmount(checkoutTotal) && paymentMethod === 'KLARNA') {
+      setPaymentMethod('CARD');
+    }
+  }, [paymentMethod, checkoutTotal]);
 
   useEffect(() => {
     if (!mounted || !authed || items.length === 0) return;
@@ -201,8 +210,11 @@ export default function CheckoutPage() {
     return <StoreLoadingScreen label="Préparation de la commande…" />;
   }
 
+  const klarnaEligible = isKlarnaEligibleAmount(checkoutTotal);
   const paymentLabel =
-    paymentMethod === 'KLARNA' ? 'Klarna (3× sans frais)' : 'Carte Bancaire';
+    paymentMethod === 'KLARNA'
+      ? 'Klarna — payer en 3× sans frais'
+      : 'Carte Bancaire';
 
   return (
     <div className="min-h-screen flex flex-col bg-zay-main">
@@ -349,12 +361,47 @@ export default function CheckoutPage() {
                           <CreditCard className="text-zay-text-muted" size={20} strokeWidth={1} />
                         </Label>
                       </div>
-                      <div className="flex items-center space-x-4 border border-zay-border p-6 rounded-none hover:border-primary transition-colors cursor-pointer">
-                        <RadioGroupItem value="klarna" id="klarna" />
-                        <Label htmlFor="klarna" className="flex-grow flex items-center justify-between cursor-pointer">
-                          <span className="text-sm font-light uppercase tracking-widest">Klarna (3× sans frais)</span>
-                          <span className="text-pink-500 font-black italic text-lg tracking-tighter">Klarna.</span>
-                        </Label>
+                      <div
+                        className={cn(
+                          'space-y-2 border border-zay-border p-6 rounded-none transition-colors',
+                          klarnaEligible
+                            ? 'hover:border-primary cursor-pointer'
+                            : 'opacity-50 bg-zay-main/40',
+                        )}
+                      >
+                        <div className="flex items-center space-x-4">
+                          <RadioGroupItem
+                            value="klarna"
+                            id="klarna"
+                            disabled={!klarnaEligible}
+                          />
+                          <Label
+                            htmlFor="klarna"
+                            className={cn(
+                              'flex-grow flex items-center justify-between gap-3',
+                              klarnaEligible
+                                ? 'cursor-pointer'
+                                : 'cursor-not-allowed',
+                            )}
+                          >
+                            <span className="text-sm font-light uppercase tracking-widest">
+                              Klarna — payer en 3× sans frais
+                              {!klarnaEligible && (
+                                <span className="block mt-1 normal-case tracking-normal text-[0.65rem] text-zay-text-muted italic">
+                                  Disponible de 1 € à 1 500 €
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-pink-500 font-black italic text-lg tracking-tighter shrink-0">
+                              Klarna.
+                            </span>
+                          </Label>
+                        </div>
+                        {klarnaEligible && (
+                          <p className="pl-8 text-[0.6rem] text-zay-text-muted font-light leading-relaxed">
+                            Paiement en 3 fois sans frais, soumis à acceptation par Klarna.
+                          </p>
+                        )}
                       </div>
                     </RadioGroup>
                     <div className="flex gap-4 mt-12">
