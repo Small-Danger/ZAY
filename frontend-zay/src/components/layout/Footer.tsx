@@ -12,6 +12,7 @@ import {
 import { useCategories } from '@/hooks/use-categories';
 import { API_BASE_URL } from '@/lib/api/config';
 import type { PublicStoreSettings } from '@/lib/api/store-settings-public';
+import { openConsentBanner } from '@/lib/consent';
 
 const TiktokIcon = ({ className }: { className?: string }) => (
   <svg
@@ -40,6 +41,7 @@ const STATIC_SECTIONS = [
       { name: 'CGV', href: '/cgv' },
       { name: 'Confidentialité', href: '/confidentialite' },
       { name: 'Mentions légales', href: '/mentions-legales' },
+      { name: 'Gérer les cookies', href: '#cookies' },
     ],
   },
 ];
@@ -128,12 +130,22 @@ export const Footer = () => {
                 <ul className="space-y-4 text-[13px] text-white/60 font-light tracking-widest">
                   {section.links.map((link) => (
                     <li key={`${section.title}-${link.name}`}>
-                      <Link
-                        href={link.href}
-                        className="hover:text-white transition-colors"
-                      >
-                        {link.name}
-                      </Link>
+                      {link.href === '#cookies' ? (
+                        <button
+                          type="button"
+                          onClick={() => openConsentBanner()}
+                          className="hover:text-white transition-colors"
+                        >
+                          {link.name}
+                        </button>
+                      ) : (
+                        <Link
+                          href={link.href}
+                          className="hover:text-white transition-colors"
+                        >
+                          {link.name}
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -157,12 +169,22 @@ export const Footer = () => {
                       <ul className="space-y-4 text-[13px] text-white/60 font-light tracking-widest pt-2">
                         {section.links.map((link) => (
                           <li key={`${section.title}-${link.name}`}>
-                            <Link
-                              href={link.href}
-                              className="block hover:text-white transition-colors"
-                            >
-                              {link.name}
-                            </Link>
+                            {link.href === '#cookies' ? (
+                              <button
+                                type="button"
+                                onClick={() => openConsentBanner()}
+                                className="block hover:text-white transition-colors"
+                              >
+                                {link.name}
+                              </button>
+                            ) : (
+                              <Link
+                                href={link.href}
+                                className="block hover:text-white transition-colors"
+                              >
+                                {link.name}
+                              </Link>
+                            )}
                           </li>
                         ))}
                       </ul>

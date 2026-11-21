@@ -603,7 +603,7 @@ export default function AdminProductsPage() {
         stock: variants.length > 0 ? undefined : parseStock(newProduct.stock),
         image: newProduct.imageFile
           ? undefined
-          : newProduct.image || `https://picsum.photos/seed/${Date.now()}/400/600`,
+          : newProduct.image || '/robes.png',
         imageFile: newProduct.imageFile,
         galleryFiles: newProduct.galleryFiles,
         description: newProduct.description || undefined,

@@ -42,7 +42,7 @@ export default function AboutPage() {
               className="w-full md:w-2/5 relative aspect-[3/4] bg-zay-gray rounded-sm overflow-hidden shadow-2xl max-w-sm mx-auto"
             >
               <Image 
-                src="https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&q=80&w=800" 
+                src="/hero.png" 
                 alt="Atelier ZAY" 
                 fill 
                 className="object-cover"
@@ -76,7 +76,7 @@ export default function AboutPage() {
           <div className="flex flex-col-reverse md:flex-row items-center gap-16">
             <div className="w-full md:w-2/5 relative aspect-[3/4] bg-zay-gray rounded-sm overflow-hidden max-w-sm mx-auto">
               <Image 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=800" 
+                src="/heroo3.png" 
                 alt="Fondatrice ZAY" 
                 fill 
                 className="object-cover"

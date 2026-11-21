@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { CartHydration } from '@/components/cart/CartHydration';
+import { CookieConsent } from '@/components/layout/CookieConsent';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/site';
 
 const inter = Inter({
@@ -37,10 +38,18 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
     type: 'website',
     locale: 'fr_FR',
     siteName: SITE_NAME,
+    title: `${SITE_NAME} | Mode féminine`,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary_large_image',
     title: `${SITE_NAME} | Mode féminine`,
     description: SITE_DESCRIPTION,
   },
@@ -61,6 +70,7 @@ export default function RootLayout({
         <PageTransition>
           {children}
         </PageTransition>
+        <CookieConsent />
         <BottomNav />
         <Toaster />
       </body>

@@ -45,5 +45,6 @@ export function mapApiProductToUi(product: ApiProduct): UiProduct {
     sizes,
     colors: Array.from(colorMap.entries()).map(([name, hex]) => ({ name, hex })),
     variants,
+    updatedAt: product.updatedAt,
   };
 }

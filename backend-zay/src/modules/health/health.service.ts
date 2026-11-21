@@ -13,7 +13,7 @@ export class HealthService {
     return 'ZAY API is running';
   }
 
-  async getHealth() {
+  async getDetailedHealth() {
     let database: 'up' | 'down' = 'down';
     let redis: 'up' | 'down' = 'down';
 
@@ -40,6 +40,13 @@ export class HealthService {
             ? 'cloudinary'
             : 'disk',
       timestamp: new Date().toISOString(),
+    };
+  }
+
+  async getPublicHealth(): Promise<{ status: 'ok' | 'error' }> {
+    const detail = await this.getDetailedHealth();
+    return {
+      status: detail.status === 'ok' ? 'ok' : 'error',
     };
   }
 }

@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: 'Catalogue',
   description:
     'Parcourez la collection ZAY Atelier : nouveautés, pièces signature et prêt-à-porter féminin.',
+  alternates: { canonical: '/catalogue' },
 };
 
 export default async function CataloguePage() {
