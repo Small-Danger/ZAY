@@ -86,8 +86,8 @@ export default async function ConfidentialitePage() {
         {
           title: '8. Cookies',
           paragraphs: [
-            'Le site utilise des cookies techniques indispensables au fonctionnement (session, panier, préférences). Des cookies de mesure d’audience ou marketing ne sont déposés qu’avec votre consentement lorsque applicable.',
-            'Vous pouvez configurer votre navigateur pour refuser tout ou partie des cookies ; certaines fonctionnalités du site peuvent alors être limitées.',
+            'Le site utilise le stockage local du navigateur pour le panier et la session (nécessaires au fonctionnement). Ces données ne sont pas des cookies publicitaires.',
+            'Le contenu Instagram embarqué n’est chargé qu’après votre consentement explicite. Vous pouvez accepter, refuser ou modifier ce choix à tout moment via « Gérer les cookies » dans le pied de page.',
           ],
         },
         {
