@@ -6,6 +6,7 @@ import { StripeService } from '../payments/stripe.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { PromosService } from '../promos/promos.service';
+import { MailService } from '../mail/mail.service';
 
 type OrderRow = {
   id: string;
@@ -13,9 +14,19 @@ type OrderRow = {
   userId: string;
   status: OrderStatus;
   total: Prisma.Decimal;
+  subtotal?: Prisma.Decimal;
+  shippingCost?: Prisma.Decimal;
+  discountAmount?: Prisma.Decimal;
+  firstName?: string;
+  lastName?: string;
+  addressLine?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
   promoCode: string | null;
   stripeSessionId: string | null;
   paymentMethod: PaymentMethod | null;
+  confirmationEmailSentAt?: Date | null;
   items: Array<{
     productId: string;
     variantId: string | null;
@@ -23,6 +34,8 @@ type OrderRow = {
     size: string;
     color: string;
     quantity: number;
+    unitPrice?: Prisma.Decimal;
+    lineTotal?: Prisma.Decimal;
   }>;
   user?: { id: string; email: string; firstName: string | null; lastName: string | null };
 };
@@ -52,6 +65,9 @@ describe('OrdersService — paiement Stripe', () => {
       findFirst: jest.Mock;
       updateMany: jest.Mock;
     };
+    storeSettings: {
+      findUnique: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
   let stripe: {
@@ -60,6 +76,7 @@ describe('OrdersService — paiement Stripe', () => {
     expireSession: jest.Mock;
   };
   let redis: { invalidateCatalog: jest.Mock };
+  let mail: { send: jest.Mock };
 
   const baseOrder = (overrides: Partial<OrderRow> = {}): OrderRow => ({
     id: 'order-1',
@@ -67,9 +84,19 @@ describe('OrdersService — paiement Stripe', () => {
     userId: 'user-1',
     status: OrderStatus.PENDING,
     total: new Prisma.Decimal('49.90'),
+    subtotal: new Prisma.Decimal('49.90'),
+    shippingCost: new Prisma.Decimal('0'),
+    discountAmount: new Prisma.Decimal('0'),
+    firstName: 'A',
+    lastName: 'B',
+    addressLine: '1 rue Test',
+    city: 'Paris',
+    postalCode: '75001',
+    country: 'France',
     promoCode: null,
     stripeSessionId: 'cs_test_1',
     paymentMethod: PaymentMethod.CARD,
+    confirmationEmailSentAt: null,
     items: [
       {
         productId: 'prod-1',
@@ -78,6 +105,8 @@ describe('OrdersService — paiement Stripe', () => {
         size: 'M',
         color: 'Noir',
         quantity: 1,
+        unitPrice: new Prisma.Decimal('49.90'),
+        lineTotal: new Prisma.Decimal('49.90'),
       },
     ],
     user: {
@@ -140,6 +169,9 @@ describe('OrdersService — paiement Stripe', () => {
         findFirst: jest.fn(),
         updateMany: jest.fn(),
       },
+      storeSettings: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       $transaction: jest.fn(async (fn: (tx: typeof prisma) => unknown) =>
         fn(prisma),
       ),
@@ -152,23 +184,32 @@ describe('OrdersService — paiement Stripe', () => {
     };
 
     redis = { invalidateCatalog: jest.fn().mockResolvedValue(undefined) };
+    mail = { send: jest.fn().mockResolvedValue(true) };
 
     service = new OrdersService(
       prisma as unknown as PrismaService,
       {} as PromosService,
       stripe as unknown as StripeService,
       redis as unknown as RedisService,
+      mail as unknown as MailService,
+      {
+        get: (key: string) =>
+          key === 'app.frontendUrl'
+            ? 'http://localhost:9002'
+            : key === 'app.adminNotifyEmail'
+              ? ''
+              : '',
+      } as unknown as ConfigService,
     );
   });
 
   it('session payée + commande PENDING → PAID', async () => {
     const order = baseOrder();
+    const paid = { ...order, status: OrderStatus.PAID };
     stripe.retrievePaidSession.mockResolvedValue(paidSession());
     prisma.order.findFirst.mockResolvedValue(order);
-    prisma.order.update.mockResolvedValue({
-      ...order,
-      status: OrderStatus.PAID,
-    });
+    prisma.order.update.mockResolvedValue(paid);
+    prisma.order.findUnique.mockResolvedValue(paid);
 
     const result = await service.markPaidFromStripeSession('cs_test_1');
 
@@ -179,6 +220,42 @@ describe('OrdersService — paiement Stripe', () => {
           status: OrderStatus.PAID,
           paymentMethod: PaymentMethod.CARD,
         }),
+      }),
+    );
+  });
+
+  it('deux appels markPaidFromStripeSession → un seul e-mail de confirmation', async () => {
+    const order = baseOrder();
+    const paid = { ...order, status: OrderStatus.PAID };
+    stripe.retrievePaidSession.mockResolvedValue(paidSession());
+    prisma.order.findFirst.mockResolvedValue(order);
+    prisma.order.update.mockResolvedValue(paid);
+    prisma.order.findUnique.mockResolvedValue(paid);
+
+    let confirmationClaimed = false;
+    prisma.order.updateMany.mockImplementation(
+      async (args: { where?: { confirmationEmailSentAt?: null } }) => {
+        if (args.where && 'confirmationEmailSentAt' in args.where) {
+          if (!confirmationClaimed) {
+            confirmationClaimed = true;
+            return { count: 1 };
+          }
+          return { count: 0 };
+        }
+        return { count: 1 };
+      },
+    );
+
+    await Promise.all([
+      service.markPaidFromStripeSession('cs_test_1'),
+      service.markPaidFromStripeSession('cs_test_1'),
+    ]);
+
+    expect(mail.send).toHaveBeenCalledTimes(1);
+    expect(mail.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'a@b.c',
+        subject: expect.stringContaining('Confirmation'),
       }),
     );
   });

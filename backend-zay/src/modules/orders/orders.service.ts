@@ -13,6 +13,12 @@ import type { AuthUser } from '../auth/decorators/current-user.decorator';
 import { PromosService } from '../promos/promos.service';
 import { computeProductStatus } from '../products/product.helpers';
 import { StripeService } from '../payments/stripe.service';
+import { MailService } from '../mail/mail.service';
+import {
+  adminNewOrderEmail,
+  orderConfirmationEmail,
+} from '../mail/templates/order-confirmation';
+import { orderShippedEmail } from '../mail/templates/order-shipped';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -20,6 +26,7 @@ import {
   formatAvailableVariants,
   resolveProductVariant,
 } from './variant-match';
+import { ConfigService } from '@nestjs/config';
 
 /** Délai avant annulation auto des PENDING non payées (doit rester < expires_at Stripe 30 min). */
 export const PENDING_TIMEOUT_MINUTES = 35;
@@ -40,6 +47,8 @@ export class OrdersService {
     private readonly promosService: PromosService,
     private readonly stripe: StripeService,
     private readonly redis: RedisService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
   ) {}
 
   async checkout(user: AuthUser, dto: CreateOrderDto) {
@@ -275,7 +284,7 @@ export class OrdersService {
         : PaymentMethod.CARD;
 
     if (order.status === OrderStatus.PENDING) {
-      return this.prisma.order.update({
+      const updated = await this.prisma.order.update({
         where: { id: order.id },
         data: {
           status: OrderStatus.PAID,
@@ -284,6 +293,8 @@ export class OrdersService {
         },
         include: orderInclude,
       });
+      await this.sendPaidOrderEmails(updated.id);
+      return updated;
     }
 
     if (order.status === OrderStatus.CANCELLED) {
@@ -350,6 +361,7 @@ export class OrdersService {
       }
 
       await this.redis.invalidateCatalog();
+      await this.sendPaidOrderEmails(updated.id);
       return updated;
     } catch (err) {
       const refunded = await this.prisma.order.update({
@@ -555,6 +567,13 @@ export class OrdersService {
 
     if (restock) {
       await this.redis.invalidateCatalog();
+    }
+
+    if (
+      dto.status === OrderStatus.SHIPPED &&
+      existing.status !== OrderStatus.SHIPPED
+    ) {
+      await this.sendShippedOrderEmail(updated.id);
     }
 
     return updated;
@@ -872,6 +891,117 @@ export class OrdersService {
       if (!exists) return n;
     }
     return `ZAY-${Date.now().toString().slice(-5)}`;
+  }
+
+  private async sendPaidOrderEmails(orderId: string) {
+    try {
+      const claimed = await this.prisma.order.updateMany({
+        where: { id: orderId, confirmationEmailSentAt: null },
+        data: { confirmationEmailSentAt: new Date() },
+      });
+      if (claimed.count !== 1) return;
+
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: orderInclude,
+      });
+      if (!order?.user?.email) return;
+
+      const frontendUrl = this.config.get<string>('app.frontendUrl') ?? '';
+      const trackingUrl = `${frontendUrl}/commande/suivi?id=${encodeURIComponent(order.number)}`;
+      const payload = {
+        orderNumber: order.number,
+        customerFirstName: order.firstName,
+        items: order.items.map((item) => ({
+          name: item.name,
+          size: item.size,
+          color: item.color,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal,
+        })),
+        subtotal: order.subtotal,
+        shippingCost: order.shippingCost,
+        discountAmount: order.discountAmount,
+        total: order.total,
+        addressLine: order.addressLine,
+        city: order.city,
+        postalCode: order.postalCode,
+        country: order.country,
+        trackingUrl,
+      };
+
+      const customer = orderConfirmationEmail(payload);
+      await this.mail.send({
+        to: order.user.email,
+        subject: customer.subject,
+        html: customer.html,
+        text: customer.text,
+      });
+
+      const adminTo = await this.resolveAdminNotifyEmail();
+      if (adminTo) {
+        const admin = adminNewOrderEmail(payload);
+        await this.mail.send({
+          to: adminTo,
+          subject: admin.subject,
+          html: admin.html,
+          text: admin.text,
+        });
+      }
+    } catch (err) {
+      this.logger.error(
+        `E-mails confirmation commande ${orderId}: ${
+          err instanceof Error ? err.message : 'erreur'
+        }`,
+      );
+    }
+  }
+
+  private async sendShippedOrderEmail(orderId: string) {
+    try {
+      const claimed = await this.prisma.order.updateMany({
+        where: { id: orderId, shippedEmailSentAt: null },
+        data: { shippedEmailSentAt: new Date() },
+      });
+      if (claimed.count !== 1) return;
+
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: orderInclude,
+      });
+      if (!order?.user?.email) return;
+
+      const shipped = orderShippedEmail({
+        orderNumber: order.number,
+        customerFirstName: order.firstName,
+        carrier: order.carrier,
+        trackingCode: order.trackingCode,
+        trackingUrl: order.trackingUrl,
+      });
+      await this.mail.send({
+        to: order.user.email,
+        subject: shipped.subject,
+        html: shipped.html,
+        text: shipped.text,
+      });
+    } catch (err) {
+      this.logger.error(
+        `E-mail expédition commande ${orderId}: ${
+          err instanceof Error ? err.message : 'erreur'
+        }`,
+      );
+    }
+  }
+
+  private async resolveAdminNotifyEmail(): Promise<string | null> {
+    const configured =
+      this.config.get<string>('app.adminNotifyEmail')?.trim() || '';
+    if (configured) return configured;
+    const settings = await this.prisma.storeSettings.findUnique({
+      where: { id: 1 },
+    });
+    return settings?.contactEmail?.trim() || null;
   }
 }
 

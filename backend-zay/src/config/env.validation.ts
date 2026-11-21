@@ -76,6 +76,18 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CLOUDINARY_API_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  RESEND_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  MAIL_FROM?: string;
+
+  @IsString()
+  @IsOptional()
+  ADMIN_NOTIFY_EMAIL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

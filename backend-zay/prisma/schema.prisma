@@ -207,6 +207,9 @@ model Order {
   customerName String  @map("customer_name")
   stripeSessionId String? @unique @map("stripe_session_id")
 
+  confirmationEmailSentAt DateTime? @map("confirmation_email_sent_at")
+  shippedEmailSentAt      DateTime? @map("shipped_email_sent_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
